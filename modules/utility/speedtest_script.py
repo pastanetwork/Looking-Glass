@@ -21,7 +21,7 @@ trap 'exit 130' INT TERM
 
 n=1
 while [ "$n" -le "$streams" ]; do
-    curl -s -o "$work/body$n" -w '%{speed_download} %{size_download} %{time_total}' "$url" >"$work/stats$n" &
+    curl -s -o /dev/null -w '%{speed_download} %{size_download} %{time_total}' "$url" >"$work/stats$n" &
     dl_pids="$dl_pids $!"
     n=$((n + 1))
 done
@@ -42,11 +42,13 @@ while any_running; do
     sleep 0.2
 
     received=0
-    n=1
-    while [ "$n" -le "$streams" ]; do
-        part=$(wc -c <"$work/body$n" 2>/dev/null || echo 0)
-        received=$((received + part))
-        n=$((n + 1))
+    for pid in $dl_pids; do
+        if [ -r "/proc/$pid/io" ]; then
+            w=$(awk '/^wchar:/ {print $2}' "/proc/$pid/io" 2>/dev/null)
+            received=$((received + ${w:-0}))
+        else
+            received=$((received + total))
+        fi
     done
 
     now_sec=$(date +%s)
@@ -77,6 +79,7 @@ wait $dl_pids
 
 printf '\\r%*s\\r' 64 ''
 awk -v streams="$streams" -v conn="__CONN__" -v total_label="__TOTLBL__" -v vol_label="__VOLLBL__" -v dur_label="__DURLBL__" -v unit="__UNIT__" -v w=__WIDTH__ -v sep="__SEP__" '
+function pad(s) { while (length(s) < w) s = s " "; return s }
 {
     speed[NR]  = $1
     sum_speed += $1
@@ -86,11 +89,11 @@ awk -v streams="$streams" -v conn="__CONN__" -v total_label="__TOTLBL__" -v vol_
 END {
     printf "\\n"
     for (i = 1; i <= streams; i++)
-        printf "   %-*s : %.1f Mbit/s\\n", w, sprintf("%s %d", conn, i), speed[i] * 8 / 1e6
+        printf "   %s : %.1f Mbit/s\\n", pad(sprintf("%s %d", conn, i)), speed[i] * 8 / 1e6
     printf "   %s\\n", sep
-    printf "   %-*s : %.1f Mbit/s\\n", w, total_label, sum_speed * 8 / 1e6
-    printf "   %-*s : %.0f %s\\n", w, vol_label, sum_bytes / 1e6, unit
-    printf "   %-*s : %.2f s\\n", w, dur_label, max_time
+    printf "   %s : %.1f Mbit/s\\n", pad(total_label), sum_speed * 8 / 1e6
+    printf "   %s : %.0f %s\\n", pad(vol_label), sum_bytes / 1e6, unit
+    printf "   %s : %.2f s\\n", pad(dur_label), max_time
 }' "$work"/stats*
 """
 
@@ -100,39 +103,25 @@ _WINDOWS_SCRIPT = """# Test de débit Looking-Glass
 $url     = '__URL__'
 $total   = __TOTAL__
 $streams = 4
-$dir     = Join-Path $env:TEMP 'lg_speedtest'
-
-if (Test-Path $dir) {
-    Remove-Item $dir -Recurse -Force
-}
-New-Item -ItemType Directory -Path $dir | Out-Null
+$stats   = Join-Path $env:TEMP 'lg_speedtest.txt'
 
 $curlArgs = @('-Z', '--parallel-immediate', '-s', '-w', '%{speed_download};%{size_download};%{time_total}\\n')
-foreach ($k in 1..$streams) { $curlArgs += @('-o', "body$k") }
+foreach ($k in 1..$streams) { $curlArgs += @('-o', 'NUL') }
 foreach ($k in 1..$streams) { $curlArgs += $url }
 
-$stats = Join-Path $dir 'stats.txt'
-$proc = Start-Process curl.exe -PassThru -NoNewWindow -WorkingDirectory $dir -RedirectStandardOutput $stats -ArgumentList $curlArgs
+$proc = Start-Process curl.exe -PassThru -NoNewWindow -RedirectStandardOutput $stats -ArgumentList $curlArgs
 
 try {
     try { Clear-Host } catch {}
 
     $watch = [System.Diagnostics.Stopwatch]::StartNew()
     $grandTotal = [int64]$total * $streams
+    $received = 0
     while (-not $proc.HasExited) {
         Start-Sleep -Milliseconds 200
 
-        $received = 0
-        foreach ($k in 1..$streams) {
-            $part = Join-Path $dir "body$k"
-            if (Test-Path $part) {
-                try {
-                    $fs = [System.IO.File]::Open($part, 'Open', 'Read', 'ReadWrite')
-                    $received += $fs.Length
-                    $fs.Close()
-                } catch { }
-            }
-        }
+        $info = Get-CimInstance Win32_Process -Filter "ProcessId=$($proc.Id)" -ErrorAction SilentlyContinue
+        if ($info) { $received = [int64]$info.WriteTransferCount }
         $percent = [Math]::Min(100, [int]($received * 100 / $grandTotal))
 
         $filled = [int]($percent * 24 / 100)
@@ -169,7 +158,7 @@ try {
 }
 finally {
     try { if (-not $proc.HasExited) { $proc.Kill() } } catch { }
-    Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item $stats -Force -ErrorAction SilentlyContinue
 }
 """
 
