@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ t('meta_title') }}{% endblock %} | Pastanetwork</title>
+    <meta name="description" content="{% block meta_description %}{{ t('meta_description') }}{% endblock %}">
+    {% if public_url %}<link rel="canonical" href="{{ public_url }}{{ request.path }}">{% endif %}
+    <link rel="icon" href="{{ url_for('static', filename='assets/img/favicon.ico') }}">
+
+    {# Init thème synchrone : évite le flash de couleur au chargement #}
+    <script>
+        (function () {
+            document.documentElement.classList.add("preload");
+            var t = localStorage.getItem("lg-theme");
+            var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+            if (t === "dark" || (!t && prefersDark)) {
+                document.documentElement.dataset.theme = "dark";
+            }
+            window.addEventListener("DOMContentLoaded", function () {
+                requestAnimationFrame(function () {
+                    document.documentElement.classList.remove("preload");
+                });
+            });
+        })();
+    </script>
+
+    {# Tailwind : CDN + config inline en dev, fichier compilé en prod #}
+    {% if static_folder == 'static_dev' %}
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: ["selector", '[data-theme="dark"]'],
+            theme: { extend: {
+                fontFamily: {
+                    sans: ["Outfit", "system-ui", "sans-serif"],
+                    mono: ["CascadiaCode", "ui-monospace", "monospace"],
+                },
+                colors: {
+                    dark: "var(--c-dark)", "dark-soft": "var(--c-dark-soft)", "dark-band": "var(--c-dark-band)",
+                    page: "var(--c-page)", "gray-section": "var(--c-gray-section)", "gray-card": "var(--c-gray-card)",
+                    "border-l": "var(--c-border)", "text-primary": "var(--c-text-primary)",
+                    "text-secondary": "var(--c-text-secondary)", "text-muted": "var(--c-text-muted)",
+                    gold: "#f0a030", "gold-hover": "#e89020", "gold-light": "var(--c-gold-light)",
+                    orange: "#e87530", cream: "var(--c-cream)", "cream-muted": "var(--c-cream-muted)",
+                },
+            } },
+        };
+    </script>
+    {% else %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='assets/css/tailwind.min.css') }}">
+    {% endif %}
+
+    {# Alpine.js + FontAwesome #}
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='assets/css/base.css') }}">
+
+    {# Toutes les traductions, exposées au JavaScript pour le changement en direct #}
+    <script>
+        window.I18N_ALL = {{ all_translations | tojson }};
+        window.LG_LANG = "{{ lang }}";
+    </script>
+
+    {% block head %}{% endblock %}
+</head>
+<body class="font-sans bg-page text-text-primary min-h-screen flex flex-col antialiased">
+
+    {% include 'partials/_navbar.html' %}
+
+    <main class="flex-1 w-full">
+        {% block content %}{% endblock %}
+    </main>
+
+    {% include 'partials/_footer.html' %}
+
+    {# Notifications toast #}
+    <div x-data class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 w-80 max-w-[calc(100vw-2.5rem)]" x-cloak>
+        <template x-for="toast in $store.toasts.items" :key="toast.id">
+            <div x-transition.opacity
+                 class="flex items-start gap-3 rounded-xl border border-border-l bg-gray-card px-4 py-3 shadow-lg">
+                <i class="fa-solid mt-0.5"
+                   :class="{ 'fa-circle-check text-emerald-500': toast.type === 'success',
+                             'fa-circle-exclamation text-red-500': toast.type === 'error',
+                             'fa-circle-info text-gold': toast.type === 'info' }"></i>
+                <span class="flex-1 text-sm text-text-secondary" x-text="toast.message"></span>
+                <button @click="$store.toasts.remove(toast.id)"
+                        class="text-text-muted transition-colors hover:text-text-primary">
+                    <i class="fa-solid fa-xmark text-xs"></i>
+                </button>
+            </div>
+        </template>
+    </div>
+
+    <script src="{{ url_for('static', filename='assets/js/i18n.js') }}"></script>
+    <script src="{{ url_for('static', filename='assets/js/requests.js') }}"></script>
+    <script src="{{ url_for('static', filename='assets/js/app.js') }}"></script>
+    <script src="{{ url_for('static', filename='assets/js/pastanetwork.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,39 @@
+{
+  "nodes": [
+    {
+      "id": "local",
+      "type": "local",
+      "label": "Pastanetwork (Paris)",
+      "location": "FR, Paris",
+      "ipv4": true,
+      "ipv6": true,
+      "tools": ["ping", "traceroute", "mtr"]
+    }
+  ],
+  "targets": {
+    "allow_list": [],
+    "block_list": [],
+    "block_private": true,
+    "block_bogon": true,
+    "allow_hostnames": true
+  },
+  "limits": {
+    "ping":       { "count": 10,           "timeout_seconds": 30, "max_lines": 60,  "max_bytes": 16384 },
+    "traceroute": { "max_hops": 30,         "timeout_seconds": 60, "max_lines": 120, "max_bytes": 32768 },
+    "mtr":        { "report_cycles": 10,    "timeout_seconds": 60, "max_lines": 120, "max_bytes": 32768 }
+  },
+  "speedtest": {
+    "enabled": false,
+    "files": [
+      { "id": "10mb",  "label": "10 MB",  "size_bytes": 10485760 },
+      { "id": "100mb", "label": "100 MB", "size_bytes": 104857600 },
+      { "id": "1gb",   "label": "1 GB",   "size_bytes": 1073741824 },
+      { "id": "10gb",  "label": "10 GB",  "size_bytes": 10737418240 }
+    ],
+    "max_file_size_bytes": 10737418240
+  },
+  "i18n": {
+    "default_language": "fr",
+    "available": ["fr", "en"]
+  }
+}

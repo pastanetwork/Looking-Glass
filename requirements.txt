@@ -1,0 +1,12 @@
+quart==0.20.0
+hypercorn==0.18.0
+redis==7.4.0
+aiosqlite==0.22.1
+python-dotenv==1.2.2
+orjson==3.11.9
+pydantic==2.13.4
+aiohttp[speedups]==3.13.5
+git+https://github.com/pastanetwork/quart_minify.git
+git+https://github.com/pastanetwork/quart-rate-limiter
+git+https://github.com/pastanetwork/quart-cors
+uvloop==0.21.0; sys_platform != "win32"

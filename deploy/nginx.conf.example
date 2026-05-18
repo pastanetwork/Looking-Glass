@@ -1,0 +1,43 @@
+# Exemple de vhost nginx pour la Looking Glass.
+#
+# nginx tourne EN DEHORS du conteneur (reverse proxy). Le conteneur expose
+# un seul port HTTP (8080 par défaut), adaptez `server` ci-dessous.
+#
+# IMPORTANT : pour que l'IP cliente réelle soit prise en compte, l'IP de ce
+# reverse proxy doit figurer dans la variable d'environnement
+# TRUSTED_PROXY_HOSTS de l'application.
+
+upstream looking_glass {
+    server 127.0.0.1:8080;
+}
+
+server {
+    listen 80;
+    server_name lg.example.com;
+
+    # En production, terminez le TLS ici (certbot / Let's Encrypt) et
+    # redirigez le HTTP vers le HTTPS.
+
+    # Streaming SSE de /api/v1/run : le buffering DOIT être désactivé.
+    location /api/v1/run {
+        proxy_pass http://looking_glass;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 180s;
+        chunked_transfer_encoding on;
+    }
+
+    location / {
+        proxy_pass http://looking_glass;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}

@@ -1,0 +1,83 @@
+{# Pied de page #}
+<footer class="mt-20 border-t border-white/[0.06] bg-dark text-cream">
+    <div class="mx-auto max-w-6xl px-4 py-12 sm:px-6">
+        <div class="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.6fr_1fr_1fr]">
+
+            {# Marque #}
+            <div>
+                <div class="flex items-center gap-3">
+                    <img src="{{ url_for('static', filename='assets/img/logotype_blanc.svg') }}"
+                         alt="Pastanetwork" class="h-8 w-auto">
+                    <span class="h-5 w-px bg-white/15"></span>
+                    <span class="text-sm font-medium text-cream-muted">Looking Glass</span>
+                </div>
+                <p class="mt-4 max-w-sm text-sm leading-relaxed text-cream-muted">{{ i18n('footer_desc') }}</p>
+                <div class="mt-5 flex gap-2.5">
+                    {% for url, icon, label in [
+                        ('https://github.com/pastanetwork/Looking-Glass', 'fa-github', 'GitHub'),
+                        ('https://discord.pastanetwork.com', 'fa-discord', 'Discord'),
+                        ('https://x.com/pastanetwork', 'fa-x-twitter', 'X')] %}
+                    <a href="{{ url }}" target="_blank" rel="noopener" title="{{ label }}"
+                       class="flex h-9 w-9 items-center justify-center rounded-lg border border-white/[0.08]
+                              bg-white/[0.04] text-cream-muted transition-all hover:scale-110
+                              hover:border-gold/30 hover:text-gold">
+                        <i class="fa-brands {{ icon }} text-sm"></i>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+
+            {# Navigation #}
+            <div>
+                <h4 class="text-xs font-semibold uppercase tracking-[0.16em] text-cream-muted">{{ i18n('footer_nav_title') }}</h4>
+                <ul class="mt-4 space-y-2.5 text-sm">
+                    {% for href, key, icon in [('/', 'nav_tool', 'fa-terminal'),
+                                               ('/stats', 'nav_stats', 'fa-chart-simple'),
+                                               ('/about', 'nav_about', 'fa-circle-info')] %}
+                    <li>
+                        <a href="{{ href }}"
+                           class="inline-flex items-center gap-2 text-cream-muted transition-colors hover:text-cream">
+                            <i class="fa-solid {{ icon }} w-3.5 text-center text-[11px] opacity-60"></i>{{ i18n(key) }}
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+
+            {# Projet #}
+            <div>
+                <h4 class="text-xs font-semibold uppercase tracking-[0.16em] text-cream-muted">{{ i18n('footer_project_title') }}</h4>
+                <ul class="mt-4 space-y-2.5 text-sm">
+                    <li>
+                        <a href="https://github.com/pastanetwork/Looking-Glass" target="_blank" rel="noopener"
+                           class="inline-flex items-center gap-2 text-cream-muted transition-colors hover:text-cream">
+                            <i class="fa-brands fa-github w-3.5 text-center text-[11px] opacity-60"></i>{{ i18n('footer_source') }}
+                        </a>
+                    </li>
+                    <li>
+                        <a href="https://pastanetwork.pro" target="_blank" rel="noopener"
+                           class="inline-flex items-center gap-2 text-cream-muted transition-colors hover:text-cream">
+                            <i class="fa-solid fa-globe w-3.5 text-center text-[11px] opacity-60"></i>Pastanetwork.pro
+                        </a>
+                    </li>
+                    <li>
+                        <span class="inline-flex items-center gap-2 text-cream-muted">
+                            <i class="fa-solid fa-scale-balanced w-3.5 text-center text-[11px] opacity-60"></i>{{ i18n('footer_license') }}
+                        </span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        {# Barre du bas #}
+        <div class="mt-10 flex flex-col items-center gap-3 border-t border-white/[0.06] pt-6
+                    sm:flex-row sm:justify-between">
+            <p class="text-xs text-cream-muted">&copy; 2026 Pastanetwork — {{ i18n('footer_rights') }}</p>
+            <p class="text-xs text-cream-muted">
+                {{ i18n('footer_powered') }}
+                <a href="https://pastanetwork.pro" target="_blank" rel="noopener"
+                   class="font-medium text-gold transition-colors hover:text-gold-hover">Pastanetwork</a>
+            </p>
+        </div>
+    </div>
+</footer>

@@ -1,0 +1,340 @@
+{% extends "base.html" %}
+{% block title %}{{ t('nav_tool') }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css">
+{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-14"
+     x-data='lookingGlassPage({{ {"nodes": nodes, "tools": tools, "turnstileSiteKey": turnstile_site_key, "speedtestFiles": speedtest_files} | tojson }})'>
+
+    {# En-tête #}
+    <header class="lg-reveal mb-9 text-center" style="--d:0s">
+        <h1 class="text-3xl font-semibold tracking-tight sm:text-4xl">{{ i18n('hero_title') }}</h1>
+        <p class="mx-auto mt-3 max-w-xl text-text-secondary">{{ i18n('hero_subtitle') }}</p>
+    </header>
+
+    {# Carte outil #}
+    <div class="lg-reveal rounded-2xl border border-border-l bg-gray-card p-5 shadow-sm shadow-black/[0.03] sm:p-6"
+         style="--d:.07s">
+
+        {# Sélecteur d'outil #}
+        <div class="flex gap-1.5 rounded-xl border border-border-l bg-page p-1.5">
+            <template x-for="tl in tools" :key="tl">
+                <button @click="tool = tl"
+                        class="flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm
+                               font-medium transition-all duration-200"
+                        :class="tool === tl
+                                ? 'bg-gold text-dark shadow-sm'
+                                : 'text-text-secondary hover:bg-gray-card hover:text-text-primary'">
+                    <i class="fa-solid text-xs" :class="toolIcon(tl)"></i>
+                    <span x-text="$store.i18n.t('tool_' + tl)"></span>
+                </button>
+            </template>
+            {% if speedtest_enabled %}
+            <button @click="tool = 'speedtest'"
+                    class="flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm
+                           font-medium transition-all duration-200"
+                    :class="tool === 'speedtest'
+                            ? 'bg-gold text-dark shadow-sm'
+                            : 'text-text-secondary hover:bg-gray-card hover:text-text-primary'">
+                <i class="fa-solid fa-gauge-high text-xs"></i>
+                <span x-text="$store.i18n.t('tool_speedtest')"></span>
+            </button>
+            {% endif %}
+        </div>
+        <template x-for="td in [tool]" :key="td">
+            <p x-transition:enter="transition ease-out duration-300"
+               x-transition:enter-start="opacity-0 translate-y-1"
+               x-transition:enter-end="opacity-100 translate-y-0"
+               class="mt-2.5 flex items-center gap-1.5 text-xs text-text-muted">
+                <i class="fa-solid fa-circle-info text-[10px] text-gold/70"></i>
+                <span x-text="toolDesc(tool)"></span>
+            </p>
+        </template>
+
+        {# Contrôles de diagnostic (ping / traceroute / MTR) #}
+        <div x-show="!isSpeedtest">
+            <div class="mt-5 grid gap-4 sm:grid-cols-[1fr_auto]">
+                <div>
+                    <label class="mb-1.5 block text-xs font-medium text-text-muted">{{ i18n('form_target') }}</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-crosshairs pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2
+                                  text-xs text-text-muted"></i>
+                        <input type="text" x-model="target" @keydown.enter="canRun && run()"
+                               placeholder="{{ t('form_target_ph') }}" data-i18n-placeholder="form_target_ph"
+                               autocomplete="off" spellcheck="false"
+                               class="w-full rounded-lg border border-border-l bg-page py-2.5 pl-9 pr-24 text-sm font-mono
+                                      transition focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/20">
+                        <button type="button" @click="useMyIp()" :disabled="ipLoading"
+                                :title="$store.i18n.t('form_myip_hint')"
+                                class="absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-1.5 rounded-md
+                                       border border-border-l bg-gray-card px-2.5 py-1.5 text-xs font-medium
+                                       text-text-secondary transition hover:border-gold/40 hover:text-gold
+                                       disabled:cursor-not-allowed disabled:opacity-50">
+                            <i class="fa-solid text-[10px]"
+                               :class="ipLoading ? 'fa-circle-notch fa-spin' : 'fa-location-crosshairs'"></i>
+                            <span class="hidden sm:inline" x-text="$store.i18n.t('form_myip')"></span>
+                        </button>
+                    </div>
+                    <div class="mt-2 flex flex-wrap items-center gap-1.5">
+                        <span class="text-[11px] text-text-muted">{{ i18n('quick_targets') }}</span>
+                        <template x-for="qt in ['8.8.8.8', '1.1.1.1']" :key="qt">
+                            <button type="button" @click="target = qt"
+                                    class="rounded-md border border-border-l bg-page px-2 py-0.5 font-mono text-[11px]
+                                           text-text-secondary transition hover:border-gold/40 hover:text-gold"
+                                    x-text="qt"></button>
+                        </template>
+                    </div>
+                </div>
+                <div>
+                    <label class="mb-1.5 block text-xs font-medium text-text-muted">{{ i18n('form_ipv') }}</label>
+                    <div class="flex rounded-lg border border-border-l bg-page p-0.5">
+                        <template x-for="opt in ['auto', '4', '6']" :key="opt">
+                            <button @click="family = opt"
+                                    class="rounded-md px-3 py-2 text-xs font-semibold transition-colors"
+                                    :class="family === opt ? 'bg-gold text-dark' : 'text-text-muted hover:text-text-primary'"
+                                    x-text="$store.i18n.t('ipv_' + opt)"></button>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-4" x-show="nodes.length > 1">
+                <label class="mb-1.5 block text-xs font-medium text-text-muted">
+                    <i class="fa-solid fa-server mr-1 text-[10px] opacity-70"></i>{{ i18n('form_node') }}
+                </label>
+                <select x-model="nodeId"
+                        class="w-full rounded-lg border border-border-l bg-page px-3.5 py-2.5 text-sm
+                               transition focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/20">
+                    <template x-for="n in nodes" :key="n.id">
+                        <option :value="n.id" x-text="n.label + (n.location ? ' (' + n.location + ')' : '')"></option>
+                    </template>
+                </select>
+            </div>
+
+            {% if turnstile_site_key %}
+            <div class="mt-4" id="lg-turnstile" data-sitekey="{{ turnstile_site_key }}"></div>
+            {% endif %}
+
+            <div class="mt-5 flex gap-2.5">
+                <button @click="run()" :disabled="!canRun"
+                        class="flex flex-1 items-center justify-center rounded-lg bg-gold py-2.5 text-sm font-semibold
+                               text-dark transition-all hover:bg-gold-hover hover:shadow-md hover:shadow-gold/20
+                               disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none">
+                    <span x-show="!running"><i class="fa-solid fa-play mr-1.5"></i>{{ i18n('form_run') }}</span>
+                    <span x-show="running" x-cloak><i class="fa-solid fa-circle-notch fa-spin mr-1.5"></i>{{ i18n('form_running') }}</span>
+                </button>
+                <button @click="stop()" x-show="running" x-cloak
+                        class="flex items-center rounded-lg border border-red-500/40 px-4 text-sm font-medium text-red-500
+                               transition hover:bg-red-500/10">
+                    <i class="fa-solid fa-stop mr-1.5"></i>{{ i18n('form_stop') }}
+                </button>
+                <button @click="clear()"
+                        class="flex items-center rounded-lg border border-border-l px-4 text-sm font-medium
+                               text-text-secondary transition hover:bg-page hover:text-text-primary">
+                    <i class="fa-solid fa-eraser mr-1.5"></i>{{ i18n('form_clear') }}
+                </button>
+            </div>
+        </div>
+
+        {# Contrôles du test de débit #}
+        <div x-show="isSpeedtest" x-cloak>
+            <label class="mb-1.5 mt-5 block text-xs font-medium text-text-muted">{{ i18n('speedtest_file') }}</label>
+            <div class="flex flex-wrap gap-2">
+                <template x-for="f in speedtestFiles" :key="f.id">
+                    <button @click="stFile = f.id" :disabled="stRunning"
+                            class="rounded-lg border px-4 py-2 text-sm font-medium transition disabled:opacity-50"
+                            :class="stFile === f.id
+                                    ? 'border-gold bg-gold/10 text-gold'
+                                    : 'border-border-l text-text-secondary hover:border-gold/40 hover:text-text-primary'"
+                            x-text="f.label"></button>
+                </template>
+            </div>
+            <div class="mt-5 flex gap-2.5">
+                <button @click="runSpeedtest()" :disabled="stRunning || !stFile"
+                        class="flex flex-1 items-center justify-center rounded-lg bg-gold py-2.5 text-sm font-semibold
+                               text-dark transition-all hover:bg-gold-hover hover:shadow-md hover:shadow-gold/20
+                               disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none">
+                    <span x-show="!stRunning"><i class="fa-solid fa-play mr-1.5"></i>{{ i18n('speedtest_run') }}</span>
+                    <span x-show="stRunning" x-cloak><i class="fa-solid fa-circle-notch fa-spin mr-1.5"></i>{{ i18n('form_running') }}</span>
+                </button>
+                <button @click="stopSpeedtest()" x-show="stRunning" x-cloak
+                        class="flex items-center rounded-lg border border-red-500/40 px-4 text-sm font-medium text-red-500
+                               transition hover:bg-red-500/10">
+                    <i class="fa-solid fa-stop mr-1.5"></i>{{ i18n('form_stop') }}
+                </button>
+            </div>
+        </div>
+    </div>
+
+    {# Résultat — diagnostic : bascule console xterm / vue saut par saut #}
+    <div x-show="!isSpeedtest" class="lg-reveal mt-6" style="--d:.14s">
+        <div class="mb-2 flex items-center justify-between gap-3 px-1">
+            <div class="flex min-w-0 items-center gap-2">
+                <div x-show="hasVisual" class="flex rounded-lg border border-border-l bg-page p-0.5">
+                    <button @click="setView('visual')"
+                            class="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
+                            :class="view === 'visual' ? 'bg-gold text-dark' : 'text-text-muted hover:text-text-primary'">
+                        <i class="fa-solid fa-diagram-project text-[10px]"></i>
+                        <span x-text="$store.i18n.t('view_visual')"></span>
+                    </button>
+                    <button @click="setView('console')"
+                            class="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
+                            :class="view === 'console' ? 'bg-gold text-dark' : 'text-text-muted hover:text-text-primary'">
+                        <i class="fa-solid fa-terminal text-[10px]"></i>
+                        <span x-text="$store.i18n.t('view_console')"></span>
+                    </button>
+                </div>
+                <span x-show="!hasVisual" class="flex min-w-0 items-center gap-2 font-mono text-xs text-text-muted">
+                    <i class="fa-solid fa-chevron-right text-[10px] text-gold"></i>
+                    <span class="truncate" x-text="commandLabel || $store.i18n.t('console_title')"></span>
+                </span>
+            </div>
+            <div class="flex shrink-0 items-center gap-2.5">
+                <span x-show="status !== 'idle'" x-cloak class="flex items-center gap-2 text-xs">
+                    <span class="rounded-md px-2 py-0.5 font-semibold"
+                          :class="{
+                              'bg-gold/15 text-gold': status === 'running',
+                              'bg-emerald-500/15 text-emerald-500': status === 'ok',
+                              'bg-orange/15 text-orange': status === 'timeout',
+                              'bg-red-500/15 text-red-500': ['error', 'rejected', 'killed'].includes(status)
+                          }"
+                          x-text="statusLabel()"></span>
+                    <span class="text-text-muted" x-show="durationMs !== null"
+                          x-text="formatDuration(durationMs)"></span>
+                </span>
+                <button @click="copyOutput()" :title="$store.i18n.t('console_copy')"
+                        class="flex h-7 w-7 items-center justify-center rounded-md text-text-muted
+                               transition-colors hover:bg-gray-card hover:text-text-primary">
+                    <i class="fa-solid text-xs" :class="copied ? 'fa-check text-emerald-500' : 'fa-copy'"></i>
+                </button>
+            </div>
+        </div>
+
+        <div x-show="view === 'console'" class="lg-term">
+            <div id="lg-console" class="lg-term__body"></div>
+        </div>
+
+        <div x-show="view === 'visual' && tool !== 'ping'" x-cloak class="lg-hops">
+            <div x-show="hops.length === 0" class="lg-hops__empty"
+                 :class="cmdError && 'text-red-500'">
+                <i class="fa-solid mb-2 block text-xl"
+                   :class="cmdError ? 'fa-circle-exclamation' : 'fa-diagram-project opacity-40'"></i>
+                <span x-text="cmdError ? $store.i18n.t(cmdError) : $store.i18n.t('visual_empty')"></span>
+            </div>
+            <template x-for="(hop, idx) in hops" :key="idx">
+                <div class="lg-hop" :class="{ 'lg-hop--timeout': hop.timeout, 'lg-hop--target': hop.isTarget }">
+                    <span class="lg-hop__n" x-text="hop.n"></span>
+                    <div class="lg-hop__body">
+                        <span x-show="!hop.timeout" class="truncate font-mono text-sm" x-text="hop.host || '—'"></span>
+                        <span x-show="hop.timeout" class="text-sm font-medium text-red-500">
+                            <i class="fa-solid fa-xmark mr-1"></i><span x-text="$store.i18n.t('hop_timeout')"></span>
+                        </span>
+                        <span x-show="hop.isTarget"
+                              class="ml-2 inline-flex shrink-0 items-center gap-1 rounded-full bg-gold/15 px-2 py-0.5
+                                     text-[10px] font-bold uppercase tracking-wide text-gold">
+                            <i class="fa-solid fa-flag-checkered text-[9px]"></i>
+                            <span x-text="$store.i18n.t('hop_destination')"></span>
+                        </span>
+                    </div>
+                    <span x-show="hop.loss !== null && hop.loss !== undefined && !hop.timeout"
+                          class="lg-hop__loss"
+                          :class="hop.loss >= 50 ? 'text-red-500' : (hop.loss > 0 ? 'text-orange' : 'text-text-muted')"
+                          x-text="hop.loss + ' % ' + $store.i18n.t('hop_loss')"></span>
+                    <div x-show="!hop.timeout" class="lg-hop__probes">
+                        <template x-for="(p, pi) in hop.probes" :key="pi">
+                            <span class="lg-probe" :class="probeColor(p)" x-text="probeLabel(p)"></span>
+                        </template>
+                        <span class="lg-probe__unit">ms</span>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        {# Vue visuelle ping : graphe de latence en direct #}
+        <div x-show="view === 'visual' && tool === 'ping'" x-cloak
+             class="rounded-2xl border border-border-l bg-gray-card p-5 sm:p-6">
+            <div id="lg-ping-chart"></div>
+            <div x-show="pings.length === 0" class="py-8 text-center text-sm"
+                 :class="cmdError ? 'text-red-500' : 'text-text-muted'">
+                <i class="fa-solid mb-2 block text-xl"
+                   :class="cmdError ? 'fa-circle-exclamation' : 'fa-chart-line opacity-40'"></i>
+                <span x-text="cmdError ? $store.i18n.t(cmdError) : $store.i18n.t('visual_empty')"></span>
+            </div>
+            <div x-show="pings.length > 0" class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {% for icon, label_key, value_expr in [
+                    ('fa-arrow-down-long', 'ping_min', "pingStats.min + ' ms'"),
+                    ('fa-chart-line', 'ping_avg', "pingStats.avg + ' ms'"),
+                    ('fa-arrow-up-long', 'ping_max', "pingStats.max + ' ms'"),
+                    ('fa-triangle-exclamation', 'ping_loss', "(pingLoss !== null ? pingLoss + ' %' : '—')")] %}
+                <div class="rounded-xl border border-border-l bg-page p-3 text-center">
+                    <div class="flex items-center justify-center gap-1.5 text-[11px] text-text-muted">
+                        <i class="fa-solid {{ icon }} text-gold"></i>{{ i18n(label_key) }}
+                    </div>
+                    <div class="mt-1 text-sm font-semibold tabular-nums" x-text="{{ value_expr }}"></div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    {# Résultat — test de débit : compteur live + graphe + récapitulatif #}
+    <div x-show="isSpeedtest" x-cloak
+         class="lg-reveal mt-6 rounded-2xl border border-border-l bg-gray-card p-6 sm:p-7" style="--d:.14s">
+        <div class="text-center">
+            <div class="flex items-end justify-center gap-2">
+                <span class="text-5xl font-semibold tracking-tight tabular-nums" x-text="stSpeed"></span>
+                <span class="mb-1.5 text-lg font-medium text-text-muted">Mbps</span>
+            </div>
+            <p class="mt-1 text-xs">
+                <span x-show="stStatus === 'idle'" class="text-text-muted"
+                      x-text="$store.i18n.t('speedtest_idle')"></span>
+                <span x-show="stStatus === 'running'" class="font-medium text-gold">
+                    <i class="fa-solid fa-circle-notch fa-spin mr-1 text-[10px]"></i>
+                    <span x-text="$store.i18n.t('form_running')"></span>
+                </span>
+                <span x-show="stStatus === 'done'" class="font-medium text-emerald-500">
+                    <i class="fa-solid fa-circle-check mr-1"></i><span x-text="$store.i18n.t('status_ok')"></span>
+                </span>
+                <span x-show="stStatus === 'error'" class="font-medium text-red-500">
+                    <i class="fa-solid fa-circle-exclamation mr-1"></i><span x-text="$store.i18n.t(stError || 'status_error')"></span>
+                </span>
+            </p>
+        </div>
+
+        <div id="lg-speed-chart" class="mt-3"></div>
+
+        <div class="mt-3 h-2 overflow-hidden rounded-full bg-page">
+            <div class="h-full rounded-full bg-gold transition-[width] duration-200"
+                 :style="'width:' + stProgress + '%'"></div>
+        </div>
+
+        <div class="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {% for icon, label_key, value_expr in [
+                ('fa-arrow-up', 'speedtest_peak', "stPeak + ' Mbps'"),
+                ('fa-chart-line', 'speedtest_avg', "stAvg + ' Mbps'"),
+                ('fa-database', 'speedtest_volume', 'formatBytes(stBytes)'),
+                ('fa-stopwatch', 'speedtest_elapsed', 'formatDuration(Math.round(stDuration * 1000))')] %}
+            <div class="rounded-xl border border-border-l bg-page p-3 text-center">
+                <div class="flex items-center justify-center gap-1.5 text-[11px] text-text-muted">
+                    <i class="fa-solid {{ icon }} text-gold"></i>{{ i18n(label_key) }}
+                </div>
+                <div class="mt-1 text-sm font-semibold tabular-nums" x-text="{{ value_expr }}"></div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if turnstile_site_key %}
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" defer></script>
+{% endif %}
+<script src="https://cdn.jsdelivr.net/npm/apexcharts@3.54.1/dist/apexcharts.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
+<script src="{{ url_for('static', filename='assets/js/looking_glass.js') }}"></script>
+{% endblock %}

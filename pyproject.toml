@@ -1,0 +1,55 @@
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+indent-width = 4
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "C4", "SIM", "PL", "RUF", "S"]
+ignore = [
+  "S101",    # assert
+  "S104",    # bind 0.0.0.0
+  "S311",    # random non cryptographique
+  "PLR0913", # trop d'arguments
+  "PLR2004", # valeurs magiques
+  "PLR0911", # trop de return
+  "PLR0912", # trop de branches
+  "PLR0915", # trop d'instructions
+  "PLC0415", # import hors top-level
+  "RUF012",  # mutable class default
+  "RUF100",  # noqa inutile
+  "B904",    # raise sans from
+  "SIM102",  # if imbriqués
+  "E501",    # ligne trop longue (géré par le formatter)
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Les tests sont permissifs ; subprocess autorisé là où c'est le rôle du module.
+"tests/**" = ["S", "PLR"]
+"modules/executors/**" = ["S603", "S607"]
+"minification/**" = ["S603", "S607"]
+"lg.py" = ["S603", "S607"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["modules"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+timeout = 30
+testpaths = ["tests"]
+markers = [
+  "slow: tests lents",
+  "integration: tests d'intégration",
+  "unit: tests unitaires",
+]
+
+[tool.coverage.run]
+source = ["modules"]
+omit = ["tests/*", "modules/utility/orjson_provider.py"]
+
+[tool.coverage.report]
+fail_under = 20
+show_missing = true

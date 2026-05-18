@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ t('about_title') }}{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-3xl px-4 py-12 sm:px-6">
+    <h1 class="lg-reveal flex items-center gap-3 text-3xl font-semibold tracking-tight sm:text-4xl" style="--d:0s">
+        <i class="fa-solid fa-circle-info text-gold"></i>{{ i18n('about_title') }}
+    </h1>
+
+    <div class="mt-8 space-y-4">
+        {% for icon, title_key, body_key, delay in [
+            ('fa-circle-question', 'about_what_title', 'about_what_body', '.05s'),
+            ('fa-gears', 'about_how_title', 'about_how_body', '.1s'),
+            ('fa-shield-halved', 'about_privacy_title', 'about_privacy_body', '.15s')] %}
+        <section class="lg-reveal rounded-2xl border border-border-l bg-gray-card p-5 sm:p-6" style="--d:{{ delay }}">
+            <h2 class="flex items-center gap-2.5 text-lg font-semibold text-gold">
+                <i class="fa-solid {{ icon }} text-base"></i>{{ i18n(title_key) }}
+            </h2>
+            <p class="mt-2 leading-relaxed text-text-secondary">{{ i18n(body_key) }}</p>
+        </section>
+        {% endfor %}
+
+        <section class="lg-reveal flex flex-col items-start gap-3 rounded-2xl border border-gold/30
+                        bg-gold/[0.06] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6" style="--d:.2s">
+            <p class="flex items-center gap-2.5 text-sm text-text-secondary">
+                <i class="fa-brands fa-osi text-gold"></i>{{ i18n('about_opensource') }}
+            </p>
+            <a href="https://github.com/pastanetwork/Looking-Glass" target="_blank" rel="noopener"
+               class="inline-flex shrink-0 items-center gap-2 rounded-lg bg-gold px-4 py-2 text-sm font-semibold
+                      text-dark transition hover:bg-gold-hover">
+                <i class="fa-brands fa-github"></i>{{ i18n('about_source') }}
+            </a>
+        </section>
+    </div>
+</div>
+{% endblock %}

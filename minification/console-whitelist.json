@@ -1,0 +1,6 @@
+{
+  "_comment": "Fichiers JS (chemin relatif à la racine) qui conservent leurs appels console.* à la minification.",
+  "whitelistedFiles": [
+    "static_dev/assets/js/pastanetwork.js"
+  ]
+}

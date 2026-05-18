@@ -1,0 +1,314 @@
+/*=============== POLICES ===============*/
+@font-face {
+    font-family: "Outfit";
+    src: url("../fonts/outfit-300.woff2") format("woff2");
+    font-weight: 300;
+    font-display: swap;
+}
+@font-face {
+    font-family: "Outfit";
+    src: url("../fonts/outfit-400.woff2") format("woff2");
+    font-weight: 400;
+    font-display: swap;
+}
+@font-face {
+    font-family: "Outfit";
+    src: url("../fonts/outfit-500.woff2") format("woff2");
+    font-weight: 500;
+    font-display: swap;
+}
+@font-face {
+    font-family: "Outfit";
+    src: url("../fonts/outfit-600.woff2") format("woff2");
+    font-weight: 600;
+    font-display: swap;
+}
+@font-face {
+    font-family: "Outfit";
+    src: url("../fonts/outfit-700.woff2") format("woff2");
+    font-weight: 700;
+    font-display: swap;
+}
+@font-face {
+    font-family: "CascadiaCode";
+    src: url("../fonts/CascadiaCode.woff2") format("woff2");
+    font-weight: 400;
+    font-display: swap;
+}
+
+/*=============== VARIABLES THEME CLAIR ===============*/
+:root {
+    --c-dark: #1a1a1f;
+    --c-dark-soft: #202025;
+    --c-dark-band: #222228;
+    --c-page: #fafaf9;
+    --c-gray-section: #f0f0f2;
+    --c-gray-card: #f0f0f3;
+    --c-border: #e2e2e8;
+    --c-text-primary: #111114;
+    --c-text-secondary: #3a3a45;
+    --c-text-muted: #6a6a7a;
+    --c-gold-light: #fef3e0;
+    --c-cream: #f0ede8;
+    --c-cream-muted: #a09890;
+    --c-nav-bg: rgba(255, 255, 255, 0.92);
+}
+
+/*=============== VARIABLES THEME SOMBRE ===============*/
+[data-theme="dark"] {
+    --c-dark: #0c0c10;
+    --c-dark-soft: #101014;
+    --c-dark-band: #0e0e12;
+    --c-page: #131317;
+    --c-gray-section: #1a1a22;
+    --c-gray-card: #1e1e28;
+    --c-border: #2c2c3a;
+    --c-text-primary: #f0ede8;
+    --c-text-secondary: #a09890;
+    --c-text-muted: #706e6a;
+    --c-gold-light: #2a2218;
+    --c-cream: #f0ede8;
+    --c-cream-muted: #a09890;
+    --c-nav-bg: rgba(19, 19, 23, 0.92);
+}
+
+/*=============== BASE ===============*/
+body {
+    font-family: "Outfit", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+*,
+*::before,
+*::after {
+    transition: background-color 0.35s ease, border-color 0.35s ease, color 0.35s ease;
+}
+
+html.preload *,
+html.preload *::before,
+html.preload *::after {
+    transition: none !important;
+}
+
+/* Les graphiques (ApexCharts) et le terminal (xterm) comptent des centaines
+   d'éléments : les exclure de la transition globale évite un repaint massif
+   et saccadé au changement de thème. */
+.apexcharts-canvas,
+.apexcharts-canvas *,
+.xterm,
+.xterm * {
+    transition: none !important;
+}
+
+/* Isole le terminal (rendu canvas) sur sa propre couche GPU : le fondu de
+   couleur des cartes autour ne force alors plus sa re-rasterisation. */
+.lg-term {
+    transform: translateZ(0);
+}
+
+[x-cloak] {
+    display: none !important;
+}
+
+/*=============== SCROLLBAR ===============*/
+::-webkit-scrollbar {
+    width: 9px;
+    height: 9px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: var(--c-border);
+    border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: var(--c-text-muted);
+}
+
+/*=============== TRANSITION ENTRE PAGES ===============*/
+@view-transition {
+    navigation: auto;
+}
+
+/*=============== REVELATION AU CHARGEMENT ===============*/
+@keyframes lg-reveal {
+    from {
+        opacity: 0;
+        transform: translateY(14px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+.lg-reveal {
+    position: relative;
+    animation: lg-reveal 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: var(--d, 0s);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .lg-reveal {
+        animation: none;
+    }
+    *,
+    *::before,
+    *::after {
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/*=============== TERMINAL xterm.js ===============*/
+.lg-term {
+    border-radius: 0.85rem;
+    border: 1px solid #26262e;
+    background: #0c0c10;
+    overflow: hidden;
+    box-shadow: 0 16px 40px -22px rgba(0, 0, 0, 0.55);
+}
+
+.lg-term__body {
+    height: 26rem;
+    padding: 0.7rem 0.4rem 0.5rem 0.85rem;
+    background: #0c0c10;
+}
+.lg-term__body .xterm {
+    height: 100%;
+}
+.lg-term__body .xterm-viewport {
+    background: transparent !important;
+}
+.lg-term__body .xterm-viewport::-webkit-scrollbar {
+    width: 8px;
+}
+.lg-term__body .xterm-viewport::-webkit-scrollbar-thumb {
+    background: #2e2e3a;
+    border-radius: 4px;
+}
+.lg-term__body .xterm-viewport::-webkit-scrollbar-thumb:hover {
+    background: #3c3c4a;
+}
+
+/*=============== VUE SAUT PAR SAUT (traceroute / MTR) ===============*/
+.lg-hops {
+    height: 26rem;
+    overflow-y: auto;
+    padding: 0.5rem;
+    border-radius: 0.85rem;
+    border: 1px solid var(--c-border);
+    background: var(--c-gray-card);
+}
+
+.lg-hops__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--c-text-muted);
+}
+
+.lg-hop {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.55rem 0.7rem;
+    border-radius: 0.6rem;
+    animation: lg-reveal 0.35s ease both;
+}
+.lg-hop:hover {
+    background: var(--c-page);
+}
+
+.lg-hop__n {
+    position: relative;
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 1.7rem;
+    height: 1.7rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--c-border);
+    background: var(--c-page);
+    font-family: "CascadiaCode", ui-monospace, monospace;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--c-text-muted);
+}
+.lg-hop:not(:last-child) .lg-hop__n::before {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    width: 2px;
+    height: 1.1rem;
+    transform: translateX(-50%);
+    background: var(--c-border);
+}
+
+.lg-hop__body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+}
+
+.lg-hop__loss {
+    flex-shrink: 0;
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+
+.lg-hop__probes {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 4px;
+}
+.lg-probe {
+    min-width: 2.2rem;
+    padding: 2px 6px;
+    border-radius: 0.35rem;
+    text-align: center;
+    font-family: "CascadiaCode", ui-monospace, monospace;
+    font-size: 0.68rem;
+    font-weight: 600;
+}
+.lg-probe--ok {
+    background: rgba(52, 211, 153, 0.16);
+    color: #10b981;
+}
+.lg-probe--mid {
+    background: rgba(240, 160, 48, 0.16);
+    color: #d18a1e;
+}
+.lg-probe--slow {
+    background: rgba(232, 117, 48, 0.18);
+    color: #e87530;
+}
+.lg-probe--miss {
+    background: var(--c-page);
+    color: var(--c-text-muted);
+}
+.lg-probe__unit {
+    font-size: 0.66rem;
+    color: var(--c-text-muted);
+}
+
+.lg-hop--timeout .lg-hop__n {
+    border-color: rgba(239, 83, 80, 0.4);
+    color: #ef5350;
+}
+
+.lg-hop--target {
+    background: rgba(240, 160, 48, 0.07);
+}
+.lg-hop--target .lg-hop__n {
+    border-color: #f0a030;
+    background: #f0a030;
+    color: #1a1a1f;
+}
