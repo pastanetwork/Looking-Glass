@@ -210,7 +210,7 @@ transit au 95e centile ni votre volume mensuel.
 | `SPEEDTEST_DAILY_BYTE_BUDGET` | `0` (illimité) | Volume total servi par jour, tous clients confondus. Une fois atteint, le speedtest est coupé jusqu'au lendemain — c'est LE garde-fou. `.env.example` propose `805306368000` (750 Gio/jour). |
 | `SPEEDTEST_PER_IP_BYTE_BUDGET` | `0` (illimité) | Volume servi par IP et par jour. `.env.example` propose `32212254720` (30 Gio/jour). |
 | `SPEEDTEST_MAX_KBPS` | `0` (non bridé) | Débit maximum par connexion, en kilo-octets/s. `0` laisse le client voir le vrai débit du lien. |
-| `SPEEDTEST_CONCURRENCY` | `2` | Nombre de téléchargements speedtest simultanés, tous clients confondus. |
+| `SPEEDTEST_CONCURRENCY` | `16` | Connexions speedtest simultanées, tous clients confondus. Un test en ligne de commande ouvre 4 connexions en parallèle : prévoir un multiple de 4. |
 
 ##### Test de débit depuis un terminal
 
@@ -231,15 +231,19 @@ curl -fsSL "https://lg.exemple.net/api/v1/speedtest/cli/script/100mb?token=...&o
 irm "https://lg.exemple.net/api/v1/speedtest/cli/script/100mb?token=...&os=windows&lang=fr" | iex
 ```
 
-La commande télécharge un court script qui mesure le débit, affiche une barre de
-progression en direct puis un résumé.
+La commande télécharge un court script qui ouvre **4 connexions en parallèle** (une
+seule connexion TCP ne sature pas un lien rapide, et chacune est servie par un worker
+distinct), affiche le débit agrégé en direct, puis le détail par connexion et le total.
 
 ```text
-   Débit :  938 Mbit/s  ▕████████████████░░░░░░░░▏  74%
+   Débit :  9380 Mbit/s  ▕████████████████░░░░░░░░▏  74%
 
-   Débit moyen : 942.5 Mbit/s
-   Volume      : 100 Mo
-   Durée       : 0.85 s
+   Connexion 1 : 2980.0 Mbit/s
+   Connexion 2 : 3010.0 Mbit/s
+   Connexion 3 : 2950.0 Mbit/s
+   Connexion 4 : 3040.0 Mbit/s
+   ────────────────────────────
+   Débit total : 11980.0 Mbit/s
 ```
 
 Le script exécuté est **affiché dans la page** (bouton « Voir le script exécuté ») pour

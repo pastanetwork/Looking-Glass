@@ -111,7 +111,8 @@
   "speedtest_cli_view": "Voir le script exécuté",
   "speedtest_cli_expired": "Lien expiré. Régénérez la commande depuis la page.",
   "speedtest_cli_live": "Débit",
-  "speedtest_cli_avg": "Débit moyen",
+  "speedtest_cli_conn": "Connexion",
+  "speedtest_cli_total": "Débit total",
   "speedtest_cli_unit": "Mo",
 
   "status_ok": "Terminé",

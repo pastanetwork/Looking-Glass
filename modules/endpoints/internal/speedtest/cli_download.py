@@ -2,15 +2,42 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from quart import jsonify
+from quart import Response, jsonify
 
-from modules.endpoints.internal.speedtest.download import build_stream_response
 from modules.utility.middleware import get_client_ip
 
 if TYPE_CHECKING:
     from quart.typing import ResponseReturnValue
 
     from modules.services.speedtest_service import SpeedtestService
+
+
+def _stream_response(speedtest_service: SpeedtestService, file_id: str, size: int, client_ip: str) -> Response:
+    """
+    Construit la réponse de streaming d'un fichier de test de débit.
+
+    Parameters:
+        speedtest_service (SpeedtestService): service produisant le flux d'octets.
+        file_id (str): identifiant du fichier de test demandé.
+        size (int): taille en octets à envoyer, déjà validée et plafonnée.
+        client_ip (str): adresse IP du client pour le suivi du budget.
+
+    Returns:
+        Response: réponse HTTP en flux, sans mise en cache.
+    """
+    response = Response(
+        speedtest_service.stream(file_id, size, client_ip),
+        content_type="application/octet-stream",
+    )
+
+    safe_id = "".join(c for c in file_id if c.isalnum())
+
+    response.headers["Content-Length"] = str(size)
+    response.headers["Content-Disposition"] = f'attachment; filename="speedtest-{safe_id}.bin"'
+    response.headers["Cache-Control"] = "no-store"
+    response.timeout = None
+
+    return response
 
 
 async def cli_download_speedtest_func(config: dict, file_id: str, token: str) -> ResponseReturnValue:
@@ -31,4 +58,4 @@ async def cli_download_speedtest_func(config: dict, file_id: str, token: str) ->
 
         return body, start.http
 
-    return build_stream_response(speedtest_service, file_id, start.size, client_ip)
+    return _stream_response(speedtest_service, file_id, start.size, client_ip)

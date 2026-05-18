@@ -80,14 +80,6 @@ async def test_stats_endpoint():
         assert "recent" in data["data"]
 
 
-async def test_speedtest_disabled_by_default():
-    """Le speedtest est désactivé par défaut et renvoie 404."""
-    async with app.test_app() as test_app:
-        client = test_app.test_client()
-        resp = await client.get("/api/v1/speedtest/10mb")
-        assert resp.status_code == 404
-
-
 async def test_speedtest_cli_token_disabled_by_default():
     """La génération de token CLI est refusée tant que le speedtest est désactivé."""
     async with app.test_app() as test_app:

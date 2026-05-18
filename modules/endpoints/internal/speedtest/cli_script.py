@@ -53,9 +53,10 @@ async def cli_script_func(config: dict, file_id: str, token: str, os_name: str, 
         download_url=f"{base}/api/v1/speedtest/cli/{file_id}?token={token}",
         total=size,
         live=t("speedtest_cli_live"),
-        avg=t("speedtest_cli_avg"),
-        volume=t("speedtest_volume"),
-        duration=t("speedtest_elapsed"),
+        conn=t("speedtest_cli_conn"),
+        total_label=t("speedtest_cli_total"),
+        volume_label=t("speedtest_volume"),
+        duration_label=t("speedtest_elapsed"),
         unit=t("speedtest_cli_unit"),
     )
 

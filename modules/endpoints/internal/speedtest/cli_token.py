@@ -49,9 +49,10 @@ async def cli_token_func(config: dict, file_id: str, turnstile_token: str) -> Re
     t = make_translator(config["translations"], lang, config["default_language"])
     labels = {
         "live": t("speedtest_cli_live"),
-        "avg": t("speedtest_cli_avg"),
-        "volume": t("speedtest_volume"),
-        "duration": t("speedtest_elapsed"),
+        "conn": t("speedtest_cli_conn"),
+        "total_label": t("speedtest_cli_total"),
+        "volume_label": t("speedtest_volume"),
+        "duration_label": t("speedtest_elapsed"),
         "unit": t("speedtest_cli_unit"),
     }
 

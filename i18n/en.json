@@ -111,7 +111,8 @@
   "speedtest_cli_view": "View the script that runs",
   "speedtest_cli_expired": "Link expired. Generate a new command from the page.",
   "speedtest_cli_live": "Speed",
-  "speedtest_cli_avg": "Average speed",
+  "speedtest_cli_conn": "Connection",
+  "speedtest_cli_total": "Total speed",
   "speedtest_cli_unit": "MB",
 
   "status_ok": "Done",

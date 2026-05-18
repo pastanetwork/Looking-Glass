@@ -19,8 +19,8 @@ QUERY_LOG_CLEANUP_BATCH = 5000
 CONCURRENCY_SLOT_TTL = 300
 
 # Speedtest (fichiers de test de débit).
-SPEEDTEST_CHUNK_SIZE = 65536        # 64 Kio par chunk
-SPEEDTEST_CONCURRENCY_CAP = 4       # téléchargements simultanés maximum
+SPEEDTEST_CHUNK_SIZE = 1048576      # 1 Mio par chunk : réduit la surcharge CPU par octet servi
+SPEEDTEST_CONCURRENCY_CAP = 16      # connexions simultanées max (un test CLI en ouvre 4 en parallèle)
 SPEEDTEST_BUDGET_TTL = 93600        # ~26 h, expiration des compteurs journaliers
 SPEEDTEST_FLUSH_EVERY = 16          # mise à jour des compteurs Redis tous les 16 chunks
 SPEEDTEST_SLOT_TTL = 300            # durée de vie d'un slot de concurrence speedtest

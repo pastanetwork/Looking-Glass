@@ -9,24 +9,12 @@ from quart_rate_limiter import rate_limit
 from modules.endpoints.internal.speedtest.cli_download import cli_download_speedtest_func
 from modules.endpoints.internal.speedtest.cli_script import cli_script_func
 from modules.endpoints.internal.speedtest.cli_token import cli_token_func
-from modules.endpoints.internal.speedtest.download import download_speedtest_func
 
 if TYPE_CHECKING:
     from quart.typing import ResponseReturnValue
 
 
 api_v1_speedtest_bp = Blueprint("api_v1_speedtest", __name__, url_prefix="/api/v1")
-
-
-@api_v1_speedtest_bp.route("/speedtest/<file_id>", methods=["GET"])
-@rate_limit(4, timedelta(minutes=1))
-async def speedtest_download(file_id: str) -> ResponseReturnValue:
-    config_quart: dict = current_app.config_quart  # noqa
-    return await download_speedtest_func(
-        config=config_quart,
-        file_id=file_id,
-        turnstile_token=request.headers.get("X-Turnstile-Token", ""),
-    )
 
 
 @api_v1_speedtest_bp.route("/speedtest/cli-token", methods=["POST"])
@@ -42,7 +30,7 @@ async def speedtest_cli_token() -> ResponseReturnValue:
 
 
 @api_v1_speedtest_bp.route("/speedtest/cli/<file_id>", methods=["GET"])
-@rate_limit(6, timedelta(minutes=1))
+@rate_limit(16, timedelta(minutes=1))
 async def speedtest_cli_download(file_id: str) -> ResponseReturnValue:
     config_quart: dict = current_app.config_quart  # noqa
     return await cli_download_speedtest_func(

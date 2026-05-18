@@ -288,7 +288,7 @@ function lookingGlassPage(options) {
         stProgress: 0,
         stBytes: 0,
         stDuration: 0,
-        _stReader: null,
+        _stReaders: [],
         _stChart: null,
         _stSamples: [],
         _stStopped: false,
@@ -580,59 +580,98 @@ function lookingGlassPage(options) {
             this.stDuration = 0;
             this._stSamples = [];
             this._stStopped = false;
+            this._stReaders = [];
             this._initSpeedChart();
 
-            var headers = {};
-            if (token) { headers["X-Turnstile-Token"] = token; }
+            // Turnstile n'autorise qu'un usage : on échange le jeton une seule fois
+            // contre un token de test, qui sert ensuite aux connexions parallèles.
+            var mintHeaders = { "Content-Type": "application/json" };
+            if (token) { mintHeaders["X-Turnstile-Token"] = token; }
 
-            var resp;
+            var stToken;
             try {
-                resp = await fetch("/api/v1/speedtest/" + encodeURIComponent(this.stFile), { headers: headers });
+                var mint = await fetch("/api/v1/speedtest/cli-token", {
+                    method: "POST",
+                    headers: mintHeaders,
+                    body: JSON.stringify({ file_id: this.stFile }),
+                });
+                var mintData = await mint.json().catch(function () { return {}; });
+                if (!mint.ok || !mintData.data || !mintData.data.token) {
+                    this._stFail((mintData && mintData.detail) || "err_generic");
+                    return;
+                }
+                stToken = mintData.data.token;
             } catch (e) {
                 this._stFail("err_network");
                 return;
             }
-            if (!resp.ok || !resp.body) {
-                var key = "err_generic";
-                try {
-                    var j = await resp.json();
-                    if (j && j.detail) { key = j.detail; }
-                } catch (e) { /* corps non JSON */ }
-                this._stFail(key);
+
+            // Ouvre STREAMS connexions en parallèle : une seule socket TCP ne sature
+            // pas un lien rapide, et chacune est servie par un worker distinct.
+            var STREAMS = 4;
+            var url = "/api/v1/speedtest/cli/" + encodeURIComponent(this.stFile)
+                + "?token=" + encodeURIComponent(stToken);
+
+            // Le chronomètre démarre avant les requêtes : sinon le serveur a déjà
+            // streamé des octets dans le tampon du navigateur quand on le lance, et
+            // le temps mesuré, trop court, gonfle le débit.
+            var t0 = performance.now();
+            var responses;
+            try {
+                var fetches = [];
+                for (var s = 0; s < STREAMS; s++) { fetches.push(fetch(url)); }
+                responses = await Promise.all(fetches);
+            } catch (e) {
+                this._stFail("err_network");
+                return;
+            }
+            if (!responses.every(function (r) { return r.ok && r.body; })) {
+                this._stFail("err_generic");
                 return;
             }
 
-            var total = parseInt(resp.headers.get("Content-Length") || "0", 10);
-            var reader = resp.body.getReader();
-            this._stReader = reader;
-            var t0 = performance.now();
+            var grandTotal = responses.reduce(function (sum, r) {
+                return sum + parseInt(r.headers.get("Content-Length") || "0", 10);
+            }, 0);
+
+            var received = 0;
+            var self = this;
+            this._stReaders = responses.map(function (r) { return r.body.getReader(); });
+
+            // Vide un flux en accumulant les octets dans le compteur partagé.
+            function pump(reader) {
+                return reader.read().then(function step(chunk) {
+                    if (chunk.done) { return; }
+                    received += chunk.value.length;
+                    return reader.read().then(step);
+                });
+            }
+
             var lastT = t0;
             var lastBytes = 0;
-            var received = 0;
+            // Échantillonne le débit agrégé toutes les 200 ms.
+            var sampler = setInterval(function () {
+                var now = performance.now();
+                var mbps = ((received - lastBytes) * 8) / ((now - lastT) / 1000) / 1e6;
+                self.stSpeed = Math.round(mbps);
+                self.stPeak = Math.max(self.stPeak, Math.round(mbps));
+                self.stBytes = received;
+                self.stProgress = grandTotal ? Math.min(100, Math.round((received / grandTotal) * 100)) : 0;
+                self.stDuration = (now - t0) / 1000;
+                self._pushSpeedSample(mbps);
+                lastT = now;
+                lastBytes = received;
+            }, 200);
+
             try {
-                while (true) {
-                    var chunk = await reader.read();
-                    if (chunk.done) { break; }
-                    received += chunk.value.length;
-                    var now = performance.now();
-                    if (now - lastT >= 200) {
-                        var mbps = ((received - lastBytes) * 8) / ((now - lastT) / 1000) / 1e6;
-                        this.stSpeed = Math.round(mbps);
-                        this.stPeak = Math.max(this.stPeak, Math.round(mbps));
-                        this.stBytes = received;
-                        this.stProgress = total ? Math.min(100, Math.round((received / total) * 100)) : 0;
-                        this.stDuration = (now - t0) / 1000;
-                        this._pushSpeedSample(mbps);
-                        lastT = now;
-                        lastBytes = received;
-                    }
-                }
+                await Promise.all(this._stReaders.map(pump));
             } catch (e) {
                 // flux interrompu (arrêt manuel ou réseau)
             }
+            clearInterval(sampler);
 
             this.stRunning = false;
-            this._stReader = null;
+            this._stReaders = [];
             this._resetTurnstile();
             var elapsed = (performance.now() - t0) / 1000;
             this.stBytes = received;
@@ -643,7 +682,7 @@ function lookingGlassPage(options) {
                 this.stStatus = "idle";
                 return;
             }
-            if (total && received < total) {
+            if (grandTotal && received < grandTotal) {
                 this.stStatus = "error";
                 this.stError = "err_network";
                 return;
@@ -655,9 +694,9 @@ function lookingGlassPage(options) {
 
         stopSpeedtest: function () {
             this._stStopped = true;
-            if (this._stReader) {
-                try { this._stReader.cancel(); } catch (e) { /* déjà fermé */ }
-            }
+            this._stReaders.forEach(function (reader) {
+                try { reader.cancel(); } catch (e) { /* déjà fermé */ }
+            });
         },
 
         genCliCommand: async function () {
@@ -714,7 +753,7 @@ function lookingGlassPage(options) {
             this.stRunning = false;
             this.stStatus = "error";
             this.stError = key;
-            this._stReader = null;
+            this._stReaders = [];
             this._resetTurnstile();
             showToast("error", window.t(key));
         },
