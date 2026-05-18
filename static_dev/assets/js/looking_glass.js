@@ -210,6 +210,17 @@ function lookingGlassPage(options) {
             self._term.loadAddon(self._fit);
             self._term.open(el);
             self._fit.fit();
+
+            // Ctrl+C (ou Cmd+C) copie le texte sélectionné dans le presse-papiers
+            // au lieu d'être absorbé par le terminal. Sans sélection, on laisse passer.
+            self._term.attachCustomKeyEventHandler(function (e) {
+                if (e.type === "keydown" && (e.ctrlKey || e.metaKey) && e.key === "c"
+                        && self._term.hasSelection()) {
+                    navigator.clipboard.writeText(self._term.getSelection());
+                    return false;
+                }
+                return true;
+            });
             window.addEventListener("resize", function () {
                 try { self._fit.fit(); } catch (e) { /* terminal non prêt */ }
             });
