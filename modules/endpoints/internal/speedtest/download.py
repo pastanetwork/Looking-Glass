@@ -13,6 +13,34 @@ if TYPE_CHECKING:
     from modules.services.turnstile_service import TurnstileService
 
 
+def build_stream_response(speedtest_service: SpeedtestService, file_id: str, size: int, client_ip: str) -> Response:
+    """
+    Construit la réponse de streaming d'un fichier de test de débit.
+
+    Parameters:
+        speedtest_service (SpeedtestService): service produisant le flux d'octets.
+        file_id (str): identifiant du fichier de test demandé.
+        size (int): taille en octets à envoyer, déjà validée et plafonnée.
+        client_ip (str): adresse IP du client pour le suivi du budget.
+
+    Returns:
+        Response: réponse HTTP en flux, sans mise en cache.
+    """
+    response = Response(
+        speedtest_service.stream(file_id, size, client_ip),
+        content_type="application/octet-stream",
+    )
+
+    safe_id = "".join(c for c in file_id if c.isalnum())
+
+    response.headers["Content-Length"] = str(size)
+    response.headers["Content-Disposition"] = f'attachment; filename="speedtest-{safe_id}.bin"'
+    response.headers["Cache-Control"] = "no-store"
+    response.timeout = None
+
+    return response
+
+
 async def download_speedtest_func(config: dict, file_id: str, turnstile_token: str) -> ResponseReturnValue:
     turnstile_service: TurnstileService = config["turnstile_service"]
     speedtest_service: SpeedtestService = config["speedtest_service"]
@@ -29,16 +57,4 @@ async def download_speedtest_func(config: dict, file_id: str, turnstile_token: s
             body.headers["Retry-After"] = "60"
         return body, start.http
 
-    response = Response(
-        speedtest_service.stream(file_id, start.size, client_ip),
-        content_type="application/octet-stream",
-    )
-
-    safe_id = "".join(c for c in file_id if c.isalnum())
-
-    response.headers["Content-Length"] = str(start.size)
-    response.headers["Content-Disposition"] = f'attachment; filename="speedtest-{safe_id}.bin"'
-    response.headers["Cache-Control"] = "no-store"
-    response.timeout = None
-
-    return response
+    return build_stream_response(speedtest_service, file_id, start.size, client_ip)

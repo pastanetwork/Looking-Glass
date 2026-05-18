@@ -39,6 +39,19 @@ def speedtest_bytes_day(day: str) -> str:
     return f"{_PREFIX}:speed:bytes:day:{day}"
 
 
+def speedtest_cli_token(token: str) -> str:
+    """
+    Retourne la clé Redis d'un token de test de débit en ligne de commande.
+
+    Parameters:
+        token (str): token opaque délivré au client.
+
+    Returns:
+        str: clé Redis du token, expirant automatiquement à son TTL.
+    """
+    return f"{_PREFIX}:speed:cli:{token}"
+
+
 def speedtest_bytes_ip(ip_hash: str, day: str) -> str:
     """
     Retourne la clé Redis du budget d'octets speedtest pour une IP sur une journée.

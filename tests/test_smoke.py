@@ -86,3 +86,27 @@ async def test_speedtest_disabled_by_default():
         client = test_app.test_client()
         resp = await client.get("/api/v1/speedtest/10mb")
         assert resp.status_code == 404
+
+
+async def test_speedtest_cli_token_disabled_by_default():
+    """La génération de token CLI est refusée tant que le speedtest est désactivé."""
+    async with app.test_app() as test_app:
+        client = test_app.test_client()
+        resp = await client.post("/api/v1/speedtest/cli-token", json={"file_id": "10mb"})
+        assert resp.status_code == 404
+
+
+async def test_speedtest_cli_download_rejects_invalid_token():
+    """Le téléchargement CLI refuse un token absent ou invalide."""
+    async with app.test_app() as test_app:
+        client = test_app.test_client()
+        resp = await client.get("/api/v1/speedtest/cli/10mb?token=inexistant")
+        assert resp.status_code in (403, 404)
+
+
+async def test_speedtest_cli_script_rejects_invalid_os():
+    """Le script CLI refuse un système d'exploitation inconnu."""
+    async with app.test_app() as test_app:
+        client = test_app.test_client()
+        resp = await client.get("/api/v1/speedtest/cli/script/10mb?token=x&os=plan9")
+        assert resp.status_code == 404

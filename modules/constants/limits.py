@@ -25,6 +25,7 @@ SPEEDTEST_BUDGET_TTL = 93600        # ~26 h, expiration des compteurs journalier
 SPEEDTEST_FLUSH_EVERY = 16          # mise à jour des compteurs Redis tous les 16 chunks
 SPEEDTEST_SLOT_TTL = 300            # durée de vie d'un slot de concurrence speedtest
 SPEEDTEST_MAX_FILE_BYTES = 10737418240   # plafond par défaut de taille de fichier (10 Gio)
+SPEEDTEST_CLI_TOKEN_TTL = 300       # durée de validité d'un token de test de débit en ligne de commande
 
 # Turnstile (vérification anti-robot Cloudflare).
 TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"

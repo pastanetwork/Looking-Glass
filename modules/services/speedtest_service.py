@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import secrets
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -13,6 +14,7 @@ from modules.constants import redis_keys
 from modules.constants.limits import (
     SPEEDTEST_BUDGET_TTL,
     SPEEDTEST_CHUNK_SIZE,
+    SPEEDTEST_CLI_TOKEN_TTL,
     SPEEDTEST_CONCURRENCY_CAP,
     SPEEDTEST_FLUSH_EVERY,
     SPEEDTEST_MAX_FILE_BYTES,
@@ -93,6 +95,11 @@ class SpeedtestService:
         """Indique si la fonctionnalité speedtest est activée."""
         return self._enabled
 
+    @property
+    def cli_token_ttl(self) -> int:
+        """Durée de validité, en secondes, d'un token de test de débit en ligne de commande."""
+        return SPEEDTEST_CLI_TOKEN_TTL
+
     def files(self) -> List[dict]:
         """
         Retourne la liste des fichiers de test exposés avec leurs tailles plafonnées.
@@ -121,6 +128,48 @@ class SpeedtestService:
         """
         f = self._files.get(file_id)
         return min(f["size_bytes"], self._max_file_size) if f else None
+
+    async def mint_cli_token(self) -> Optional[str]:
+        """
+        Génère un token éphémère autorisant un test de débit en ligne de commande.
+
+        Returns:
+            Optional[str]: token opaque, ou None si le speedtest est désactivé ou si Redis est indisponible.
+        """
+        if not self._enabled:
+            return None
+
+        token = secrets.token_urlsafe(24)
+        client = redis.Redis(connection_pool=self._pool)
+
+        try:
+            await client.set(redis_keys.speedtest_cli_token(token), "1", ex=SPEEDTEST_CLI_TOKEN_TTL)
+        except Exception as e:
+            self._logger.warning("Création du token speedtest CLI échouée : %s", e)
+            return None
+
+        return token
+
+    async def cli_token_valid(self, token: str) -> bool:
+        """
+        Indique si un token de test de débit en ligne de commande est encore valide.
+
+        Parameters:
+            token (str): token opaque fourni par le client en ligne de commande.
+
+        Returns:
+            bool: True si le token existe et n'a pas expiré, False sinon.
+        """
+        if not self._enabled or not token or len(token) > 64:
+            return False
+
+        client = redis.Redis(connection_pool=self._pool)
+
+        try:
+            return bool(await client.exists(redis_keys.speedtest_cli_token(token)))
+        except Exception as e:
+            self._logger.warning("Vérification du token speedtest CLI échouée : %s", e)
+            return False
 
     def _hash(self, ip: str) -> str:
         """

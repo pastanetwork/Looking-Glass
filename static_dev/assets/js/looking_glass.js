@@ -292,12 +292,20 @@ function lookingGlassPage(options) {
         _stChart: null,
         _stSamples: [],
         _stStopped: false,
+        stCliLoading: false,
+        stCliCommands: null,
+        stCliScripts: null,
+        stCliOs: "linux",
+        stCliCopied: false,
+        stCliShowScript: false,
 
         init: function () {
             this._initTerminal();
             if (this.turnstileSiteKey) {
                 this._renderTurnstile();
             }
+            var plat = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "";
+            this.stCliOs = /win/i.test(plat) ? "windows" : "linux";
             this.$watch("tool", (t) => {
                 if (t !== "speedtest") { this.view = "visual"; }
                 if (this.stRunning && t !== "speedtest") {
@@ -307,6 +315,11 @@ function lookingGlassPage(options) {
                 // arrête une commande en cours et on réinitialise l'affichage.
                 if (this.running) { this.stop(); }
                 this.clear();
+            });
+            this.$watch("stFile", () => {
+                this.stCliCommands = null;
+                this.stCliScripts = null;
+                this.stCliShowScript = false;
             });
             this.$watch("dnsMode", () => {
                 if (this.tool === "dns") {
@@ -354,6 +367,14 @@ function lookingGlassPage(options) {
 
         get isSpeedtest() {
             return this.tool === "speedtest";
+        },
+
+        get stCliCommand() {
+            return (this.stCliCommands && this.stCliCommands[this.stCliOs]) || "";
+        },
+
+        get stCliScript() {
+            return (this.stCliScripts && this.stCliScripts[this.stCliOs]) || "";
         },
 
         get pingStats() {
@@ -637,6 +658,56 @@ function lookingGlassPage(options) {
             if (this._stReader) {
                 try { this._stReader.cancel(); } catch (e) { /* déjà fermé */ }
             }
+        },
+
+        genCliCommand: async function () {
+            if (this.stCliLoading || !this.stFile) { return; }
+
+            var token = "";
+            if (this.turnstileSiteKey) {
+                token = this._turnstileToken();
+                if (!token) {
+                    showToast("error", window.t("err_turnstile_missing"));
+                    return;
+                }
+            }
+
+            this.stCliLoading = true;
+            this.stCliCommands = null;
+            this.stCliScripts = null;
+            this.stCliShowScript = false;
+
+            var headers = { "Content-Type": "application/json" };
+            if (token) { headers["X-Turnstile-Token"] = token; }
+
+            try {
+                var resp = await fetch("/api/v1/speedtest/cli-token", {
+                    method: "POST",
+                    headers: headers,
+                    body: JSON.stringify({ file_id: this.stFile }),
+                });
+                var data = await resp.json().catch(function () { return {}; });
+                if (resp.ok && data.data && data.data.commands) {
+                    this.stCliCommands = data.data.commands;
+                    this.stCliScripts = data.data.scripts;
+                } else {
+                    showToast("error", window.t((data && data.detail) || "err_generic"));
+                }
+            } catch (e) {
+                showToast("error", window.t("err_network"));
+            } finally {
+                this.stCliLoading = false;
+                this._resetTurnstile();
+            }
+        },
+
+        copyCliCommand: function () {
+            var self = this;
+            if (!this.stCliCommand || !navigator.clipboard) { return; }
+            navigator.clipboard.writeText(this.stCliCommand).then(function () {
+                self.stCliCopied = true;
+                setTimeout(function () { self.stCliCopied = false; }, 1600);
+            }).catch(function () { /* presse-papiers indisponible */ });
         },
 
         _stFail: function (key) {

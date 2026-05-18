@@ -212,6 +212,42 @@ transit au 95e centile ni votre volume mensuel.
 | `SPEEDTEST_MAX_KBPS` | `0` (non bridé) | Débit maximum par connexion, en kilo-octets/s. `0` laisse le client voir le vrai débit du lien. |
 | `SPEEDTEST_CONCURRENCY` | `2` | Nombre de téléchargements speedtest simultanés, tous clients confondus. |
 
+##### Test de débit depuis un terminal
+
+Le speedtest de l'interface est un test navigateur : il mesure le débit *de la machine
+qui affiche la page*. Pour mesurer le débit d'un serveur Linux sans navigateur, l'onglet
+« Débit » propose un bouton **Tester depuis un terminal**.
+
+Le navigateur résout Turnstile une fois, puis l'application délivre un token éphémère
+(valable 5 minutes, non lié à l'IP, la machine testée peut donc différer de celle qui
+a ouvert la page) et affiche **une commande unique** à coller, adaptée au système :
+
+```bash
+# Linux / macOS
+curl -fsSL "https://lg.exemple.net/api/v1/speedtest/cli/script/100mb?token=...&os=linux&lang=fr" | sh
+```
+```powershell
+# Windows (PowerShell)
+irm "https://lg.exemple.net/api/v1/speedtest/cli/script/100mb?token=...&os=windows&lang=fr" | iex
+```
+
+La commande télécharge un court script qui mesure le débit, affiche une barre de
+progression en direct puis un résumé.
+
+```text
+   Débit :  938 Mbit/s  ▕████████████████░░░░░░░░▏  74%
+
+   Débit moyen : 942.5 Mbit/s
+   Volume      : 100 Mo
+   Durée       : 0.85 s
+```
+
+Le script exécuté est **affiché dans la page** (bouton « Voir le script exécuté ») pour
+qui veut l'inspecter avant ; il est aussi consultable en retirant le ` | sh` / ` | iex`
+de la commande. Le token reste réutilisable pendant sa durée de vie (on peut relancer
+le test) ; les budgets `SPEEDTEST_DAILY_BYTE_BUDGET` et `SPEEDTEST_PER_IP_BYTE_BUDGET`
+plafonnent l'abus de la même manière que le speedtest navigateur.
+
 #### Divers
 
 | Variable | Défaut | Rôle |
