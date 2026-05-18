@@ -54,6 +54,11 @@
             </p>
         </template>
 
+        {# Turnstile : partagé par tous les outils, y compris le test de débit. #}
+        {% if turnstile_site_key %}
+        <div class="mt-4 flex justify-center" id="lg-turnstile" data-sitekey="{{ turnstile_site_key }}"></div>
+        {% endif %}
+
         {# Contrôles de diagnostic (ping / traceroute / MTR) #}
         <div x-show="!isSpeedtest">
             <div class="mt-5 grid gap-4 sm:grid-cols-[1fr_auto]">
@@ -113,10 +118,6 @@
                     </template>
                 </select>
             </div>
-
-            {% if turnstile_site_key %}
-            <div class="mt-4" id="lg-turnstile" data-sitekey="{{ turnstile_site_key }}"></div>
-            {% endif %}
 
             <div class="mt-5 flex gap-2.5">
                 <button @click="run()" :disabled="!canRun"
@@ -222,10 +223,10 @@
                  :class="cmdError && 'text-red-500'">
                 <i class="fa-solid mb-2 block text-xl"
                    :class="cmdError ? 'fa-circle-exclamation'
-                           : (running && tool === 'mtr' ? 'fa-circle-notch fa-spin text-gold'
+                           : (running ? 'fa-circle-notch fa-spin text-gold'
                               : 'fa-diagram-project opacity-40')"></i>
                 <span x-text="cmdError ? $store.i18n.t(cmdError)
-                              : (running && tool === 'mtr' ? $store.i18n.t('mtr_running')
+                              : (running ? $store.i18n.t(tool === 'mtr' ? 'mtr_running' : 'traceroute_running')
                                  : $store.i18n.t('visual_empty'))"></span>
             </div>
             <template x-for="(hop, idx) in hops" :key="idx">

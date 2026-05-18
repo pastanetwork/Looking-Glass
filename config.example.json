@@ -35,5 +35,13 @@
   "i18n": {
     "default_language": "fr",
     "available": ["fr", "en"]
+  },
+  "cors": {
+    "allow_origin": [],
+    "allow_credentials": false,
+    "allow_methods": ["GET", "HEAD", "POST", "OPTIONS"],
+    "allow_headers": ["Content-Type", "X-Turnstile-Token"],
+    "expose_headers": ["Content-Length", "Retry-After"],
+    "max_age": 600
   }
 }

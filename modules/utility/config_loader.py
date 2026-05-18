@@ -50,6 +50,14 @@ DEFAULTS: dict[str, Any] = {
         "max_file_size_bytes": SPEEDTEST_MAX_FILE_BYTES,
     },
     "i18n": {"default_language": "fr", "available": ["fr", "en"]},
+    "cors": {
+        "allow_origin": [],
+        "allow_credentials": False,
+        "allow_methods": ["GET", "HEAD", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "X-Turnstile-Token"],
+        "expose_headers": ["Content-Length", "Retry-After"],
+        "max_age": 600,
+    },
 }
 
 
@@ -154,6 +162,12 @@ def load_config() -> dict[str, Any]:
 
     allowed = os.getenv("ALLOWED_HOSTS", "")
     config["allowed_hosts"] = [h.strip() for h in allowed.split(",") if h.strip()]
+
+    # Origines CORS : liste vide = same-origin uniquement. L'env, si présente,
+    # prime sur le fichier JSON ; absente, la valeur JSON (ou le défaut) est conservée.
+    cors_origin = os.getenv("CORS_ALLOW_ORIGIN")
+    if cors_origin is not None:
+        config["cors"]["allow_origin"] = [o.strip() for o in cors_origin.split(",") if o.strip()]
 
     config["default_language"] = os.getenv("DEFAULT_LANGUAGE", config["i18n"]["default_language"])
 

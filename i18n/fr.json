@@ -51,6 +51,7 @@
   "ping_loss": "Perte",
   "visual_empty": "Le résultat visuel s'affichera ici.",
   "mtr_running": "MTR en cours… le rapport s'affiche en une fois, à la fin (environ 15 secondes).",
+  "traceroute_running": "Traceroute en cours… analyse du chemin réseau.",
 
   "speedtest_file": "Taille du fichier",
   "speedtest_run": "Lancer le test",

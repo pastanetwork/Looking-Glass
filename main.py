@@ -45,7 +45,16 @@ config_quart["logger"] = logger
 config_quart["translations"] = load_translations(logger)
 
 app = Quart(__name__, static_folder=config_quart["static_folder"], static_url_path="/static")
-app = cors(app, allow_origin=[])
+
+_cors_cfg: dict = config_quart["cors"]
+app.config["QUART_CORS_ALLOW_ORIGIN"] = _cors_cfg["allow_origin"]
+app.config["QUART_CORS_ALLOW_CREDENTIALS"] = _cors_cfg["allow_credentials"]
+app.config["QUART_CORS_ALLOW_METHODS"] = _cors_cfg["allow_methods"]
+app.config["QUART_CORS_ALLOW_HEADERS"] = _cors_cfg["allow_headers"]
+app.config["QUART_CORS_EXPOSE_HEADERS"] = _cors_cfg["expose_headers"]
+app.config["QUART_CORS_MAX_AGE"] = _cors_cfg["max_age"]
+app = cors(app)
+
 app.json = OrjsonProvider(app)
 Minify(app=app, js=False, cssless=False)
 

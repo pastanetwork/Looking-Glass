@@ -119,6 +119,10 @@ function lookingGlassPage(options) {
                 if (this.stRunning && t !== "speedtest") {
                     this.stopSpeedtest();
                 }
+                // Le résultat ne doit pas suivre d'un outil à l'autre : on
+                // arrête une commande en cours et on réinitialise l'affichage.
+                if (this.running) { this.stop(); }
+                this.clear();
             });
         },
 
@@ -289,6 +293,16 @@ function lookingGlassPage(options) {
 
         runSpeedtest: async function () {
             if (this.stRunning || !this.stFile) { return; }
+
+            var token = "";
+            if (this.turnstileSiteKey) {
+                token = this._turnstileToken();
+                if (!token) {
+                    showToast("error", window.t("err_turnstile_missing"));
+                    return;
+                }
+            }
+
             this.stRunning = true;
             this.stStatus = "running";
             this.stError = "";
@@ -302,9 +316,12 @@ function lookingGlassPage(options) {
             this._stStopped = false;
             this._initSpeedChart();
 
+            var headers = {};
+            if (token) { headers["X-Turnstile-Token"] = token; }
+
             var resp;
             try {
-                resp = await fetch("/api/v1/speedtest/" + encodeURIComponent(this.stFile));
+                resp = await fetch("/api/v1/speedtest/" + encodeURIComponent(this.stFile), { headers: headers });
             } catch (e) {
                 this._stFail("err_network");
                 return;
@@ -350,6 +367,7 @@ function lookingGlassPage(options) {
 
             this.stRunning = false;
             this._stReader = null;
+            this._resetTurnstile();
             var elapsed = (performance.now() - t0) / 1000;
             this.stBytes = received;
             this.stDuration = elapsed;
@@ -381,6 +399,7 @@ function lookingGlassPage(options) {
             this.stStatus = "error";
             this.stError = key;
             this._stReader = null;
+            this._resetTurnstile();
             showToast("error", window.t(key));
         },
 

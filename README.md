@@ -100,6 +100,10 @@ Points importants :
 - `-e DEV=False` : l'image ne contient que les assets minifiés ; le mode développement
   n'y a pas de sens. `python lg.py run` force d'ailleurs cette valeur.
 
+Un fichier `deploy/compose.yaml` est également fourni pour un déploiement via Docker
+Compose (ou un gestionnaire de stacks comme Dockge), avec volumes nommés et capabilities
+déjà configurés.
+
 L'application écoute sur le port 8080. Le conteneur embarque son propre Redis, aucun
 service externe n'est requis. Un endpoint `/api/v1/health` est exposé pour la
 surveillance (et utilisé par le `HEALTHCHECK` Docker).
@@ -107,9 +111,9 @@ surveillance (et utilisé par le `HEALTHCHECK` Docker).
 ### Reverse proxy
 
 Mettez votre reverse proxy devant le conteneur. Un exemple de vhost nginx est fourni
-dans `deploy/nginx.conf.example`. Le **buffering doit être désactivé** sur la route
-`/api/v1/run` pour que le streaming SSE fonctionne, et le reverse proxy doit transmettre
-l'en-tête `X-Real-IP` (voir `TRUSTED_PROXY_HOSTS`).
+dans `deploy/nginx.conf.example`. Le **buffering doit être désactivé** sur les routes
+`/api/v1/run` (streaming SSE) et `/api/v1/speedtest` (mesure de débit fidèle), et le
+reverse proxy doit transmettre l'en-tête `X-Real-IP` (voir `TRUSTED_PROXY_HOSTS`).
 
 [turnstile]: https://dash.cloudflare.com/?to=/:account/turnstile
 
@@ -147,6 +151,15 @@ fichier. En voici le détail.
 | `LG_DB_PATH` | `data/looking_glass.db` | Chemin de la base SQLite. À conserver dans le volume `/app/data`. |
 | `TRUSTED_PROXY_HOSTS` | `127.0.0.1` | Hôtes (séparés par des virgules) autorisés à réécrire l'IP cliente via l'en-tête `X-Real-IP`. Mettez-y l'IP de votre reverse proxy. |
 | `ALLOWED_HOSTS` | *(vide)* | Noms d'hôte acceptés dans l'en-tête `Host` (séparés par des virgules, motif `*.domaine` autorisé). Vide = tout accepter. Les hôtes loopback restent toujours acceptés. |
+
+#### CORS
+
+| Variable | Défaut | Rôle |
+|---|---|---|
+| `CORS_ALLOW_ORIGIN` | *(vide)* | Origines autorisées en CORS (séparées par des virgules, ex. `https://exemple.com`). Vide = same-origin uniquement : l'API n'est consommée que par le frontend du Looking Glass. |
+
+Les autres réglages CORS (méthodes, en-têtes autorisés et exposés, `max-age`) se font
+dans le fichier `config.json`, section `cors`.
 
 #### Redis (interne au conteneur, éphémère)
 
@@ -253,6 +266,17 @@ par défaut. Vous ne renseignez donc que ce que vous voulez changer.
   "i18n": {
     "default_language": "fr",
     "available": ["fr", "en"]
+  },
+
+  // Politique CORS. allow_origin vide = same-origin uniquement ; l'env
+  // CORS_ALLOW_ORIGIN, si définie, prime sur la valeur ci-dessous.
+  "cors": {
+    "allow_origin": [],                                    // origines cross-origin autorisées
+    "allow_credentials": false,
+    "allow_methods": ["GET", "HEAD", "POST", "OPTIONS"],
+    "allow_headers": ["Content-Type", "X-Turnstile-Token"],
+    "expose_headers": ["Content-Length", "Retry-After"],
+    "max_age": 600                                         // cache du préflight, en secondes
   }
 }
 ```
@@ -299,9 +323,11 @@ protections sont appliquées dans l'application elle-même.
 - aucune commande n'est passée à un shell, l'exécution se fait par liste d'arguments
 - validation stricte des cibles avec le module `ipaddress` (plages privées, réservées
   et bogon refusées, IP revérifiées après résolution DNS pour contrer le DNS-rebinding)
-- Cloudflare Turnstile est vérifié avant toute exécution
+- Cloudflare Turnstile est vérifié avant toute commande et avant tout test de débit
 - plafonds de commandes simultanées globaux et par IP, délais d'expiration stricts,
   sortie bornée
+- les sauts internes (IP privées et réservées) sont masqués dans la sortie de
+  traceroute et MTR : la topologie interne n'est pas exposée
 - le conteneur tourne sans privilège root, avec la seule capability `NET_RAW`
 - les IP sources sont hachées en SHA-256 avant d'être journalisées, jamais en clair
 
