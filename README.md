@@ -7,6 +7,10 @@ Pastanetwork vers l'adresse de son choix, et d'en suivre le résultat en direct.
 Tout tient dans une seule image Docker (l'application et son Redis interne), à placer
 derrière votre reverse proxy. Pas de compte, pas de service externe à gérer.
 
+<p align="center">
+  <img src=".github/assets/home.png" alt="Page d'accueil du Looking Glass" width="820">
+</p>
+
 ## Fonctionnalités
 
 - ping, traceroute et MTR, en IPv4 comme en IPv6
@@ -17,6 +21,35 @@ derrière votre reverse proxy. Pas de compte, pas de service externe à gérer.
 
 L'architecture sépare l'outil du nœud qui l'exécute. Un seul nœud aujourd'hui, mais
 ajouter des points de présence distants ne demandera pas de tout réécrire.
+
+## Aperçu
+
+Chaque résultat se consulte de deux façons : une **vue visuelle** synthétique ou la
+**console brute**, telle que la commande la produit.
+
+### Ping
+
+| Vue visuelle | Console |
+|---|---|
+| ![Ping — vue visuelle](.github/assets/ping-visuel.png) | ![Ping — console](.github/assets/ping-console.png) |
+
+### Traceroute
+
+| Vue visuelle | Console |
+|---|---|
+| ![Traceroute — vue visuelle](.github/assets/traceroute-visuel.png) | ![Traceroute — console](.github/assets/traceroute-console.png) |
+
+### Test de débit
+
+| Lancement | Résultat |
+|---|---|
+| ![Test de débit](.github/assets/debit.png) | ![Test de débit — résultat](.github/assets/debit-info.png) |
+
+### Statistiques
+
+| Chiffres clés et activité | Répartitions et débit | Requêtes récentes |
+|---|---|---|
+| ![Statistiques — chiffres clés](.github/assets/stats.png) | ![Statistiques — répartitions](.github/assets/stats-2.png) | ![Statistiques — requêtes récentes](.github/assets/stats-3.png) |
 
 ## Installation avec Docker
 
