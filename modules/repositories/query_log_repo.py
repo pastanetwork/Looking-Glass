@@ -1,4 +1,3 @@
-"""Accès au journal des requêtes (table query_log)."""
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, List, Optional
@@ -29,9 +28,6 @@ class QueryLogRepository:
     ) -> None:
         """
         Enregistre une entrée dans le journal des requêtes (best-effort).
-
-        Ne lève jamais d'exception : les erreurs d'écriture sont loguées en
-        avertissement et ignorées.
 
         Parameters:
             node_id (str): identifiant du nœud ayant traité la requête.

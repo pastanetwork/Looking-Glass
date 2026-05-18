@@ -122,6 +122,8 @@
   "error_429": "Trop de requêtes. Réessayez dans un instant.",
   "error_500": "Erreur interne du serveur.",
   "error_back": "Retour à l'accueil",
+  "error_previous": "Page précédente",
+  "error_code": "Erreur",
 
   "lang_name": "Français"
 }

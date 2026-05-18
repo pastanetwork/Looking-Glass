@@ -23,24 +23,24 @@
         <div class="flex gap-1.5 rounded-xl border border-border-l bg-page p-1.5">
             <template x-for="tl in tools" :key="tl">
                 <button @click="tool = tl"
-                        class="flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm
-                               font-medium transition-all duration-200"
+                        class="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-lg px-1.5 py-2.5
+                               text-sm font-medium transition-all duration-200"
                         :class="tool === tl
                                 ? 'bg-gold text-dark shadow-sm'
                                 : 'text-text-secondary hover:bg-gray-card hover:text-text-primary'">
-                    <i class="fa-solid text-xs" :class="toolIcon(tl)"></i>
-                    <span x-text="$store.i18n.t('tool_' + tl)"></span>
+                    <i class="fa-solid shrink-0 text-xs" :class="toolIcon(tl)"></i>
+                    <span class="truncate" x-text="$store.i18n.t('tool_' + tl)"></span>
                 </button>
             </template>
             {% if speedtest_enabled %}
             <button @click="tool = 'speedtest'"
-                    class="flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm
-                           font-medium transition-all duration-200"
+                    class="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-lg px-1.5 py-2.5
+                           text-sm font-medium transition-all duration-200"
                     :class="tool === 'speedtest'
                             ? 'bg-gold text-dark shadow-sm'
                             : 'text-text-secondary hover:bg-gray-card hover:text-text-primary'">
-                <i class="fa-solid fa-gauge-high text-xs"></i>
-                <span x-text="$store.i18n.t('tool_speedtest')"></span>
+                <i class="fa-solid fa-gauge-high shrink-0 text-xs"></i>
+                <span class="truncate" x-text="$store.i18n.t('tool_speedtest')"></span>
             </button>
             {% endif %}
         </div>
