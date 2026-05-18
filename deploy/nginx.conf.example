@@ -1,22 +1,39 @@
 # Exemple de vhost nginx pour la Looking Glass.
 #
 # nginx tourne EN DEHORS du conteneur (reverse proxy). Le conteneur expose
-# un seul port HTTP (8080 par défaut), adaptez `server` ci-dessous.
+# un seul port HTTP (8080 par défaut).
 #
 # IMPORTANT : pour que l'IP cliente réelle soit prise en compte, l'IP de ce
 # reverse proxy doit figurer dans la variable d'environnement
 # TRUSTED_PROXY_HOSTS de l'application.
 
+# Adaptez l'adresse à l'hôte qui fait tourner le conteneur (127.0.0.1 si nginx
+# et Docker sont sur la même machine, sinon l'IP LAN de la VM Docker).
 upstream looking_glass {
     server 127.0.0.1:8080;
 }
 
+# --- HTTP : redirection vers HTTPS ---
 server {
     listen 80;
     server_name lg.example.com;
 
-    # En production, terminez le TLS ici (certbot / Let's Encrypt) et
-    # redirigez le HTTP vers le HTTPS.
+    return 301 https://$host$request_uri;
+}
+
+# --- HTTPS ---
+server {
+    listen 443 ssl;
+    server_name lg.example.com;
+
+    # Certificats SSL (gérés par Certbot : sudo certbot --nginx -d lg.example.com).
+    ssl_certificate /etc/letsencrypt/live/lg.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/lg.example.com/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+
+    # Logs
+    access_log /var/log/nginx/lg.example.com-access.log;
+    error_log /var/log/nginx/lg.example.com-error.log error;
 
     # Streaming SSE de /api/v1/run : le buffering DOIT être désactivé.
     location /api/v1/run {
@@ -32,6 +49,20 @@ server {
         chunked_transfer_encoding on;
     }
 
+    # Téléchargement du speedtest : buffering désactivé pour ne pas fausser
+    # la mesure ni saturer le disque de nginx sur les gros volumes.
+    location /api/v1/speedtest {
+        proxy_pass http://looking_glass;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_read_timeout 300s;
+    }
+
+    # Proxy vers Hypercorn (Quart).
     location / {
         proxy_pass http://looking_glass;
         proxy_http_version 1.1;
@@ -39,5 +70,11 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_connect_timeout 60s;
+        proxy_read_timeout 120s;
+        proxy_send_timeout 120s;
+
+        client_max_body_size 50M;
     }
 }

@@ -36,3 +36,15 @@ class CommandSpec(ABC):
         Returns:
             list[str]: argv prêt à être passé à asyncio.create_subprocess_exec.
         """
+
+    def filter_line(self, line: str) -> str:
+        """
+        Transforme une ligne de sortie avant diffusion (identité par défaut).
+
+        Parameters:
+            line (str): ligne de sortie brute du sous-processus.
+
+        Returns:
+            str: ligne éventuellement transformée.
+        """
+        return line

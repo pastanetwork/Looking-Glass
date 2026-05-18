@@ -8,8 +8,10 @@
     {% if public_url %}<link rel="canonical" href="{{ public_url }}{{ request.path }}">{% endif %}
     <link rel="icon" href="{{ url_for('static', filename='assets/img/favicon.ico') }}">
 
-    {# Init thème synchrone : évite le flash de couleur au chargement #}
-    <script>
+    {# Init thème synchrone : évite le flash de couleur au chargement.
+       data-cfasync="false" : empêche Cloudflare Rocket Loader de différer ce
+       script, ce qui casserait l'ordre d'exécution et Alpine.js. #}
+    <script data-cfasync="false">
         (function () {
             document.documentElement.classList.add("preload");
             var t = localStorage.getItem("lg-theme");
@@ -24,6 +26,11 @@
             });
         })();
     </script>
+
+    {# FontAwesome : chargé AVANT Tailwind pour que les utilitaires d'affichage
+       de Tailwind (hidden, block…) l'emportent sur le `display` que FontAwesome
+       applique à toutes les icônes .fa-solid. #}
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
     {# Tailwind : CDN + config inline en dev, fichier compilé en prod #}
     {% if static_folder == 'static_dev' %}
@@ -51,15 +58,14 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='assets/css/tailwind.min.css') }}">
     {% endif %}
 
-    {# Alpine.js + FontAwesome #}
-    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    {# Alpine.js — data-cfasync="false" : Rocket Loader est incompatible avec Alpine. #}
+    <script data-cfasync="false" defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+    <script data-cfasync="false" defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
     <link rel="stylesheet" href="{{ url_for('static', filename='assets/css/base.css') }}">
 
     {# Toutes les traductions, exposées au JavaScript pour le changement en direct #}
-    <script>
+    <script data-cfasync="false">
         window.I18N_ALL = {{ all_translations | tojson }};
         window.LG_LANG = "{{ lang }}";
     </script>
@@ -94,10 +100,12 @@
         </template>
     </div>
 
-    <script src="{{ url_for('static', filename='assets/js/i18n.js') }}"></script>
-    <script src="{{ url_for('static', filename='assets/js/requests.js') }}"></script>
-    <script src="{{ url_for('static', filename='assets/js/app.js') }}"></script>
-    <script src="{{ url_for('static', filename='assets/js/pastanetwork.js') }}"></script>
+    {# data-cfasync="false" : exclut ces scripts de Cloudflare Rocket Loader
+       pour préserver leur ordre d'exécution (stores Alpine, i18n…). #}
+    <script data-cfasync="false" src="{{ url_for('static', filename='assets/js/i18n.js') }}"></script>
+    <script data-cfasync="false" src="{{ url_for('static', filename='assets/js/requests.js') }}"></script>
+    <script data-cfasync="false" src="{{ url_for('static', filename='assets/js/app.js') }}"></script>
+    <script data-cfasync="false" src="{{ url_for('static', filename='assets/js/pastanetwork.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

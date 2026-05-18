@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from modules.executors.commands.base import CommandSpec
 from modules.models.enums import CommandType
+from modules.utility.ip_validation import redact_internal_ips
 from modules.utility.system import IS_WINDOWS
 
 
@@ -35,4 +36,8 @@ class TracerouteCommand(CommandSpec):
         if IS_WINDOWS:
             return ["tracert", "-d", "-h", str(self.max_hops), ip]
 
-        return ["stdbuf", "-oL", "traceroute", "-n", "-q", "2", "-w", "2", "-m", str(self.max_hops), "--", ip]
+        return ["stdbuf", "-oL", "traceroute", "-I", "-n", "-q", "2", "-w", "2", "-m", str(self.max_hops), "--", ip]
+
+    def filter_line(self, line: str) -> str:
+        """Masque les sauts internes (IP privées/réservées) de la sortie."""
+        return redact_internal_ips(line)

@@ -79,6 +79,7 @@ class LocalCommandStream:
         self._line_count += 1
         self._byte_count += len(raw)
         line = raw.decode(SUBPROCESS_OUTPUT_ENCODING, "replace").rstrip("\r\n")
+        line = self._spec.filter_line(line)
 
         if self._line_count > self._spec.max_lines or self._byte_count > self._spec.max_bytes:
             await self._end(CommandStatus.KILLED, kill=True)

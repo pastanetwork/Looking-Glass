@@ -150,6 +150,8 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="https://cdn.jsdelivr.net/npm/apexcharts@3.54.1/dist/apexcharts.min.js"></script>
-<script src="{{ url_for('static', filename='assets/js/stats.js') }}"></script>
+{# data-cfasync="false" : exclut ces scripts de Cloudflare Rocket Loader
+   (stats.js est un composant Alpine, l'ordre d'exécution doit être conservé). #}
+<script data-cfasync="false" src="https://cdn.jsdelivr.net/npm/apexcharts@3.54.1/dist/apexcharts.min.js"></script>
+<script data-cfasync="false" src="{{ url_for('static', filename='assets/js/stats.js') }}"></script>
 {% endblock %}

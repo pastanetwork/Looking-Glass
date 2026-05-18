@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from modules.executors.commands.base import CommandSpec
 from modules.models.enums import CommandType
+from modules.utility.ip_validation import redact_internal_ips
 
 
 class MtrCommand(CommandSpec):
@@ -32,3 +33,7 @@ class MtrCommand(CommandSpec):
             list[str]: argv prêt à être passé à asyncio.create_subprocess_exec.
         """
         return ["mtr", "-n", "--report", "--report-wide", "--report-cycles", str(self.report_cycles), "--", ip]
+
+    def filter_line(self, line: str) -> str:
+        """Masque les sauts internes (IP privées/réservées) de la sortie."""
+        return redact_internal_ips(line)

@@ -50,6 +50,7 @@
   "ping_max": "Max",
   "ping_loss": "Loss",
   "visual_empty": "The visual result will appear here.",
+  "mtr_running": "MTR running… the report is shown all at once, at the end (about 15 seconds).",
 
   "speedtest_file": "File size",
   "speedtest_run": "Start the test",

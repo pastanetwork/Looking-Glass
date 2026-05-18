@@ -628,7 +628,11 @@ function lookingGlassPage(options) {
                 if (window.turnstile) {
                     var el = document.getElementById("lg-turnstile");
                     if (el && self._tsWidgetId === undefined) {
-                        self._tsWidgetId = window.turnstile.render(el, { sitekey: self.turnstileSiteKey });
+                        var theme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+                        self._tsWidgetId = window.turnstile.render(el, {
+                            sitekey: self.turnstileSiteKey,
+                            theme: theme,
+                        });
                     }
                 } else {
                     setTimeout(attempt, 200);

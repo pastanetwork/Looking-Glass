@@ -1,0 +1,45 @@
+# Stack Docker Compose de la Looking Glass.
+#
+# L'image est construite et publiée par le workflow GitHub (.github/workflows/docker.yml)
+# sur GHCR : ghcr.io/pastanetwork/looking-glass
+
+services:
+  looking-glass:
+    image: ghcr.io/pastanetwork/looking-glass:latest
+    container_name: looking-glass
+    # Nom d'hôte propre : apparaît dans l'en-tête « HOST: » de la sortie MTR
+    # à la place de l'ID de conteneur aléatoire.
+    hostname: looking-glass
+    restart: unless-stopped
+
+    # ping / traceroute / mtr ont besoin des sockets bruts ; tout le reste est retiré.
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_RAW
+    security_opt:
+      - no-new-privileges:true
+
+    # Exposé sur toutes les interfaces : la VM nginx (sur le LAN) proxifie vers ce port.
+    ports:
+      - "8080:8080"
+
+    # Variables d'environnement : éditées via Dockge (fichier .env de la stack).
+    env_file:
+      - .env
+    environment:
+      # L'image de prod ne contient que les assets minifiés : on force le mode prod.
+      DEV: "False"
+
+    volumes:
+      # SQLite (journal des requêtes) + sel de hachage des IP — à conserver.
+      - lg-data:/app/data
+      # Journaux applicatifs.
+      - lg-logs:/app/logs
+      # config.json optionnel (LG_CONFIG_FILE=/config/config.json). Laisser tel quel
+      # si tu pilotes tout par variables d'environnement.
+      - ./config:/config:ro
+
+volumes:
+  lg-data:
+  lg-logs:

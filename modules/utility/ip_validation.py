@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import socket
 from dataclasses import dataclass
 from ipaddress import (
@@ -21,7 +22,11 @@ from modules.models.enums import IpFamily
 
 _IPAddress = Union[IPv4Address, IPv6Address]
 _IPNetwork = Union[IPv4Network, IPv6Network]
-
+INTERNAL_HOP_PLACEHOLDER = "•••"
+_IP_TOKEN_RE = re.compile(
+    r"(?:\d{1,3}\.){3}\d{1,3}"
+    r"|(?:[0-9A-Fa-f]{1,4}:){2,}[0-9A-Fa-f:]*"
+)
 
 @dataclass
 class ValidationResult:
@@ -63,6 +68,42 @@ def _in_nets(ip_obj: _IPAddress, nets: List[_IPNetwork]) -> bool:
         bool: True si l'IP est dans au moins un des réseaux.
     """
     return any(ip_obj.version == net.version and ip_obj in net for net in nets)
+
+
+def is_internal_ip(token: str) -> bool:
+    """
+    Indique si une chaîne est une IP interne (privée, réservée ou non globale).
+
+    Parameters:
+        token (str): chaîne à tester.
+
+    Returns:
+        bool: True si la chaîne est une IP qui ne doit pas être exposée publiquement.
+    """
+    try:
+        ip_obj = ip_address(token)
+    except ValueError:
+        return False
+    if _in_nets(ip_obj, ALWAYS_BLOCKED_NETS) or _in_nets(ip_obj, PRIVATE_NETS):
+        return True
+    return not ip_obj.is_global
+
+
+def redact_internal_ips(line: str) -> str:
+    """
+    Masque les IP internes (sauts privés/réservés) dans une ligne de sortie.
+
+    Parameters:
+        line (str): ligne de sortie d'une commande réseau.
+
+    Returns:
+        str: ligne où chaque IP interne est remplacée par un marqueur neutre.
+    """
+    def _mask(match: re.Match) -> str:
+        token = match.group(0)
+        return INTERNAL_HOP_PLACEHOLDER if is_internal_ip(token) else token
+
+    return _IP_TOKEN_RE.sub(_mask, line)
 
 
 def _family_matches(version: int, family: IpFamily) -> bool:

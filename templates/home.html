@@ -221,8 +221,12 @@
             <div x-show="hops.length === 0" class="lg-hops__empty"
                  :class="cmdError && 'text-red-500'">
                 <i class="fa-solid mb-2 block text-xl"
-                   :class="cmdError ? 'fa-circle-exclamation' : 'fa-diagram-project opacity-40'"></i>
-                <span x-text="cmdError ? $store.i18n.t(cmdError) : $store.i18n.t('visual_empty')"></span>
+                   :class="cmdError ? 'fa-circle-exclamation'
+                           : (running && tool === 'mtr' ? 'fa-circle-notch fa-spin text-gold'
+                              : 'fa-diagram-project opacity-40')"></i>
+                <span x-text="cmdError ? $store.i18n.t(cmdError)
+                              : (running && tool === 'mtr' ? $store.i18n.t('mtr_running')
+                                 : $store.i18n.t('visual_empty'))"></span>
             </div>
             <template x-for="(hop, idx) in hops" :key="idx">
                 <div class="lg-hop" :class="{ 'lg-hop--timeout': hop.timeout, 'lg-hop--target': hop.isTarget }">
@@ -330,11 +334,13 @@
 {% endblock %}
 
 {% block scripts %}
+{# data-cfasync="false" : exclut ces scripts de Cloudflare Rocket Loader
+   (looking_glass.js est un composant Alpine, l'ordre d'exécution doit être conservé). #}
 {% if turnstile_site_key %}
-<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" defer></script>
+<script data-cfasync="false" src="https://challenges.cloudflare.com/turnstile/v0/api.js" defer></script>
 {% endif %}
-<script src="https://cdn.jsdelivr.net/npm/apexcharts@3.54.1/dist/apexcharts.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
-<script src="{{ url_for('static', filename='assets/js/looking_glass.js') }}"></script>
+<script data-cfasync="false" src="https://cdn.jsdelivr.net/npm/apexcharts@3.54.1/dist/apexcharts.min.js"></script>
+<script data-cfasync="false" src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
+<script data-cfasync="false" src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
+<script data-cfasync="false" src="{{ url_for('static', filename='assets/js/looking_glass.js') }}"></script>
 {% endblock %}
