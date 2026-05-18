@@ -9,13 +9,13 @@ _LOOPBACK_HOSTS = ("localhost", "127.0.0.1", "::1")
 
 
 class ProxyHeadersMiddleware:
-    def __init__(self, app: Any, trusted_proxy_hosts: Optional[List[str]] = None) -> None:
+    def __init__(self, app: Any, config: dict) -> None:
         self.app: Any = app
-        self.trusted_proxy_hosts: List[str] = trusted_proxy_hosts or []
+        self._config: dict = config
 
     async def __call__(self, scope: dict, receive: Callable, send: Callable) -> None:
         """
-        Traite chaque requête ASGI et réécrit l'IP cliente depuis X-Real-IP si le proxy est de confiance.
+        Traite chaque requête ASGI et réécrit l'IP cliente si le proxy est de confiance.
 
         Parameters:
             scope (dict): scope ASGI de la requête entrante.
@@ -23,14 +23,58 @@ class ProxyHeadersMiddleware:
             send (Callable): callable d'envoi des messages ASGI.
         """
         if scope["type"] in ("http", "websocket"):
-            headers = dict(scope.get("headers", []))
             client = scope.get("client")
-            if client and client[0] in self.trusted_proxy_hosts:
-                real_ip = headers.get(b"x-real-ip", b"").decode().strip()
+            if client and client[0] in self._config["trusted_proxy_hosts"]:
+                headers = dict(scope.get("headers", []))
+                real_ip = self._resolve_client_ip(headers)
                 if real_ip:
                     scope = dict(scope)
                     scope["client"] = (real_ip, client[1])
         await self.app(scope, receive, send)
+
+    def _resolve_client_ip(self, headers: dict) -> str:
+        """
+        Détermine l'IP cliente à partir des en-têtes posés par le proxy de confiance.
+
+        Parameters:
+            headers (dict): en-têtes ASGI bruts de la requête.
+
+        Returns:
+            str: IP cliente retenue, ou chaîne vide si indisponible.
+        """
+        edge_ip = headers.get(b"x-real-ip", b"").decode().strip()
+        if self._config["cloudflare"]["enabled"]:
+            cf_ip = self._cloudflare_client_ip(headers, edge_ip)
+            if cf_ip:
+                return cf_ip
+
+        return edge_ip
+
+    def _cloudflare_client_ip(self, headers: dict, edge_ip: str) -> Optional[str]:
+        """
+        Retourne l'IP de l'en-tête CF-Connecting-IP si la requête provient de Cloudflare.
+
+        Parameters:
+            headers (dict): en-têtes ASGI bruts de la requête.
+            edge_ip (str): IP ayant contacté le reverse proxy (en-tête X-Real-IP).
+
+        Returns:
+            Optional[str]: IP réelle du visiteur, ou None si la requête ne vient pas de Cloudflare.
+        """
+        cf_ip = headers.get(b"cf-connecting-ip", b"").decode().strip()
+        if not cf_ip or not edge_ip:
+            return None
+
+        try:
+            edge = ip_address(edge_ip)
+        except (AddressValueError, ValueError):
+            return None
+
+        for net in self._config["cloudflare_nets"]:
+            if edge.version == net.version and edge in net:
+                return cf_ip
+
+        return None
 
 
 class TrustedHostMiddleware:

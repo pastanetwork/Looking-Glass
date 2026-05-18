@@ -35,6 +35,11 @@ server {
     access_log /var/log/nginx/lg.example.com-access.log;
     error_log /var/log/nginx/lg.example.com-error.log error;
 
+    # Derrière Cloudflare : aucun réglage `real_ip` à faire ici. Activez plutôt
+    # CLOUDFLARE_ENABLED=true dans la configuration de l'application : elle lit
+    # alors l'IP réelle du visiteur dans l'en-tête CF-Connecting-IP, que nginx
+    # transmet automatiquement à l'amont.
+
     # Streaming SSE de /api/v1/run : le buffering DOIT être désactivé.
     location /api/v1/run {
         proxy_pass http://looking_glass;

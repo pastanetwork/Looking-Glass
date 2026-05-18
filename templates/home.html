@@ -54,11 +54,6 @@
             </p>
         </template>
 
-        {# Turnstile : partagé par tous les outils, y compris le test de débit. #}
-        {% if turnstile_site_key %}
-        <div class="mt-4 flex justify-center" id="lg-turnstile" data-sitekey="{{ turnstile_site_key }}"></div>
-        {% endif %}
-
         {# Contrôles de diagnostic (ping / traceroute / MTR) #}
         <div x-show="!isSpeedtest">
             <div class="mt-5 grid gap-4 sm:grid-cols-[1fr_auto]">
@@ -118,7 +113,32 @@
                     </template>
                 </select>
             </div>
+        </div>
 
+        {# Contrôles du test de débit #}
+        <div x-show="isSpeedtest" x-cloak>
+            <label class="mb-1.5 mt-5 block text-xs font-medium text-text-muted">{{ i18n('speedtest_file') }}</label>
+            <div class="flex flex-wrap gap-2">
+                <template x-for="f in speedtestFiles" :key="f.id">
+                    <button @click="stFile = f.id" :disabled="stRunning"
+                            class="rounded-lg border px-4 py-2 text-sm font-medium transition disabled:opacity-50"
+                            :class="stFile === f.id
+                                    ? 'border-gold bg-gold/10 text-gold'
+                                    : 'border-border-l text-text-secondary hover:border-gold/40 hover:text-text-primary'"
+                            x-text="f.label"></button>
+                </template>
+            </div>
+        </div>
+
+        {# Turnstile : widget unique, partagé par tous les outils. Placé ici, il
+           apparaît juste avant les boutons — après le nœud en diagnostic, après
+           les tailles de fichier en test de débit. #}
+        {% if turnstile_site_key %}
+        <div class="mt-4 flex justify-center" id="lg-turnstile" data-sitekey="{{ turnstile_site_key }}"></div>
+        {% endif %}
+
+        {# Boutons de lancement — diagnostic (ping / traceroute / MTR) #}
+        <div x-show="!isSpeedtest">
             <div class="mt-5 flex gap-2.5">
                 <button @click="run()" :disabled="!canRun"
                         class="flex flex-1 items-center justify-center rounded-lg bg-gold py-2.5 text-sm font-semibold
@@ -140,19 +160,8 @@
             </div>
         </div>
 
-        {# Contrôles du test de débit #}
+        {# Bouton de lancement — test de débit #}
         <div x-show="isSpeedtest" x-cloak>
-            <label class="mb-1.5 mt-5 block text-xs font-medium text-text-muted">{{ i18n('speedtest_file') }}</label>
-            <div class="flex flex-wrap gap-2">
-                <template x-for="f in speedtestFiles" :key="f.id">
-                    <button @click="stFile = f.id" :disabled="stRunning"
-                            class="rounded-lg border px-4 py-2 text-sm font-medium transition disabled:opacity-50"
-                            :class="stFile === f.id
-                                    ? 'border-gold bg-gold/10 text-gold'
-                                    : 'border-border-l text-text-secondary hover:border-gold/40 hover:text-text-primary'"
-                            x-text="f.label"></button>
-                </template>
-            </div>
             <div class="mt-5 flex gap-2.5">
                 <button @click="runSpeedtest()" :disabled="stRunning || !stFile"
                         class="flex flex-1 items-center justify-center rounded-lg bg-gold py-2.5 text-sm font-semibold
@@ -261,7 +270,7 @@
         {# Vue visuelle ping : graphe de latence en direct #}
         <div x-show="view === 'visual' && tool === 'ping'" x-cloak
              class="rounded-2xl border border-border-l bg-gray-card p-5 sm:p-6">
-            <div id="lg-ping-chart"></div>
+            <div id="lg-ping-chart" x-show="!cmdError"></div>
             <div x-show="pings.length === 0" class="py-8 text-center text-sm"
                  :class="cmdError ? 'text-red-500' : 'text-text-muted'">
                 <i class="fa-solid mb-2 block text-xl"

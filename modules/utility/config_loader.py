@@ -9,6 +9,7 @@ from typing import Any
 import orjson
 from dotenv import load_dotenv
 
+from modules.constants.ip_rules import CLOUDFLARE_NETS
 from modules.constants.limits import (
     HARD_CEILINGS,
     SPEEDTEST_CONCURRENCY_CAP,
@@ -58,6 +59,7 @@ DEFAULTS: dict[str, Any] = {
         "expose_headers": ["Content-Length", "Retry-After"],
         "max_age": 600,
     },
+    "cloudflare": {"enabled": False},
 }
 
 
@@ -168,6 +170,12 @@ def load_config() -> dict[str, Any]:
     cors_origin = os.getenv("CORS_ALLOW_ORIGIN")
     if cors_origin is not None:
         config["cors"]["allow_origin"] = [o.strip() for o in cors_origin.split(",") if o.strip()]
+
+    # Cloudflare : si activé, l'IP réelle du visiteur est lue dans l'en-tête
+    # CF-Connecting-IP. cloudflare_nets sert de repli ; il est rafraîchi au
+    # démarrage par un fetch des plages officielles (voir main.py).
+    config["cloudflare"]["enabled"] = _env_bool("CLOUDFLARE_ENABLED", config["cloudflare"]["enabled"])
+    config["cloudflare_nets"] = list(CLOUDFLARE_NETS)
 
     config["default_language"] = os.getenv("DEFAULT_LANGUAGE", config["i18n"]["default_language"])
 

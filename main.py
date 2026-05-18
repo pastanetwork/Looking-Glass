@@ -22,6 +22,7 @@ from modules.services.speedtest_service import SpeedtestService
 from modules.services.stats_service import StatsService
 from modules.services.turnstile_service import TurnstileService
 from modules.task.main import TaskMain
+from modules.utility.cloudflare import fetch_cloudflare_nets
 from modules.utility.config_loader import load_config
 from modules.utility.database import get_db_connection, initialize_database
 from modules.utility.i18n import load_translations, make_i18n_tag, make_translator, negotiate_language
@@ -65,7 +66,7 @@ rate_limiter = RateLimiter(app, store=build_redis_store(config_quart))
 
 if not config_quart["dev"]:
     app.asgi_app = TrustedHostMiddleware(app.asgi_app, allowed_hosts=config_quart["allowed_hosts"])
-    app.asgi_app = ProxyHeadersMiddleware(app.asgi_app, trusted_proxy_hosts=config_quart["trusted_proxy_hosts"])
+    app.asgi_app = ProxyHeadersMiddleware(app.asgi_app, config_quart)
 
 app.register_blueprint(api_v1_meta_bp)
 app.register_blueprint(api_v1_lg_bp)
@@ -127,6 +128,14 @@ async def startup() -> None:
     config_quart["speedtest_service"] = SpeedtestService(
         config_quart["redis_pool"], config_quart, query_log_repo, logger
     )
+
+    if config_quart["cloudflare"]["enabled"]:
+        fetched = await fetch_cloudflare_nets(logger)
+        if fetched:
+            config_quart["cloudflare_nets"] = fetched
+            logger.info("Plages Cloudflare récupérées (%d entrées).", len(fetched))
+        else:
+            logger.warning("Plages Cloudflare indisponibles : repli sur la liste intégrée.")
 
     task_main = TaskMain(config=config_quart)
     config_quart["task_main"] = task_main

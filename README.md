@@ -161,6 +161,17 @@ fichier. En voici le détail.
 Les autres réglages CORS (méthodes, en-têtes autorisés et exposés, `max-age`) se font
 dans le fichier `config.json`, section `cors`.
 
+#### Cloudflare
+
+| Variable | Défaut | Rôle |
+|---|---|---|
+| `CLOUDFLARE_ENABLED` | `False` | À mettre à `True` si le site est servi derrière Cloudflare. L'application lit alors l'IP réelle du visiteur dans l'en-tête `CF-Connecting-IP`, au lieu de l'IP d'un proxy Cloudflare. |
+
+L'en-tête `CF-Connecting-IP` n'est honoré que si la requête provient réellement d'une
+plage Cloudflare — il est donc infalsifiable. Les plages sont récupérées au démarrage
+depuis Cloudflare, avec une liste intégrée en repli si la récupération échoue. Aucun
+réglage nginx n'est nécessaire.
+
 #### Redis (interne au conteneur, éphémère)
 
 | Variable | Défaut | Rôle |
@@ -277,6 +288,12 @@ par défaut. Vous ne renseignez donc que ce que vous voulez changer.
     "allow_headers": ["Content-Type", "X-Turnstile-Token"],
     "expose_headers": ["Content-Length", "Retry-After"],
     "max_age": 600                                         // cache du préflight, en secondes
+  },
+
+  // Intégration Cloudflare. "enabled" se pilote aussi via CLOUDFLARE_ENABLED,
+  // qui prime. Activé : l'IP réelle du visiteur est lue dans CF-Connecting-IP.
+  "cloudflare": {
+    "enabled": false
   }
 }
 ```
