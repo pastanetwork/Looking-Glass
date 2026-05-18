@@ -11,8 +11,18 @@ var LG_TOOL_ICONS = {
     ping: "fa-tower-broadcast",
     traceroute: "fa-route",
     mtr: "fa-wave-square",
+    dns: "fa-magnifying-glass",
     speedtest: "fa-gauge-high",
 };
+
+var LG_DNS_ALL_SET = ["A", "AAAA", "MX", "NS", "TXT", "CNAME", "SOA", "CAA", "HTTPS", "SRV", "NAPTR", "DS", "DNSKEY", "TLSA", "SSHFP"];
+var LG_DNS_RECORD_TYPES = ["ALL", "A", "AAAA", "HTTPS", "CNAME", "MX", "NS", "SOA", "TXT", "CAA", "SRV", "NAPTR", "DS", "DNSKEY", "TLSA", "SSHFP"];
+
+function formatTtl(seconds) {
+    if (seconds < 60) { return seconds + " s"; }
+    if (seconds < 3600) { return Math.round(seconds / 60) + " min"; }
+    return Math.round(seconds / 3600) + " h";
+}
 
 function parseTracerouteHop(raw) {
     var m = raw.match(/^\s*(\d+)\s+(.*\S)\s*$/);
@@ -64,6 +74,174 @@ function parsePingLoss(raw) {
     return m ? parseFloat(m[1].replace(",", ".")) : null;
 }
 
+var LG_DNSSEC_ALGO = {
+    "1": "RSAMD5", "3": "DSA", "5": "RSASHA1", "6": "DSA-NSEC3-SHA1",
+    "7": "RSASHA1-NSEC3-SHA1", "8": "RSASHA256", "10": "RSASHA512", "12": "ECC-GOST",
+    "13": "ECDSAP256SHA256", "14": "ECDSAP384SHA384", "15": "ED25519", "16": "ED448",
+};
+var LG_DS_DIGEST = { "1": "SHA-1", "2": "SHA-256", "3": "GOST", "4": "SHA-384" };
+var LG_SSHFP_ALGO = { "1": "RSA", "2": "DSA", "3": "ECDSA", "4": "Ed25519", "6": "Ed448" };
+var LG_SSHFP_FP = { "1": "SHA-1", "2": "SHA-256" };
+
+function lgNamed(map, n) {
+    return map[n] ? (n + " — " + map[n]) : n;
+}
+
+function lgTokens(value) {
+    return value.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
+}
+
+function lgUnquote(s) {
+    return (s || "").replace(/^"|"$/g, "");
+}
+
+function dnsRecordFields(type, value) {
+    var p = lgTokens(value);
+    if (type === "SOA" && p.length >= 7) {
+        return [
+            { label: "dns_soa_primary", value: p[0] },
+            { label: "dns_soa_contact", value: p[1] },
+            { label: "dns_soa_serial", value: p[2] },
+            { label: "dns_soa_refresh", value: formatTtl(+p[3]) },
+            { label: "dns_soa_retry", value: formatTtl(+p[4]) },
+            { label: "dns_soa_expire", value: formatTtl(+p[5]) },
+            { label: "dns_soa_minimum", value: formatTtl(+p[6]) },
+        ];
+    }
+    if (type === "SRV" && p.length >= 4) {
+        return [
+            { label: "dns_f_priority", value: p[0] },
+            { label: "dns_f_weight", value: p[1] },
+            { label: "dns_f_port", value: p[2] },
+            { label: "dns_f_target", value: p[3] },
+        ];
+    }
+    if (type === "CAA" && p.length >= 3) {
+        return [
+            { label: "dns_f_flags", value: p[0] },
+            { label: "dns_f_tag", value: p[1] },
+            { label: "dns_f_value", value: lgUnquote(p.slice(2).join(" ")) },
+        ];
+    }
+    if (type === "DS" && p.length >= 4) {
+        return [
+            { label: "dns_f_keytag", value: p[0] },
+            { label: "dns_f_algorithm", value: lgNamed(LG_DNSSEC_ALGO, p[1]) },
+            { label: "dns_f_digesttype", value: lgNamed(LG_DS_DIGEST, p[2]) },
+            { label: "dns_f_digest", value: p.slice(3).join("") },
+        ];
+    }
+    if (type === "DNSKEY" && p.length >= 4) {
+        var role = p[0] === "257" ? " (KSK)" : (p[0] === "256" ? " (ZSK)" : "");
+        return [
+            { label: "dns_f_flags", value: p[0] + role },
+            { label: "dns_f_protocol", value: p[1] },
+            { label: "dns_f_algorithm", value: lgNamed(LG_DNSSEC_ALGO, p[2]) },
+            { label: "dns_f_key", value: p.slice(3).join("") },
+        ];
+    }
+    if (type === "SSHFP" && p.length >= 3) {
+        return [
+            { label: "dns_f_algorithm", value: lgNamed(LG_SSHFP_ALGO, p[0]) },
+            { label: "dns_f_fptype", value: lgNamed(LG_SSHFP_FP, p[1]) },
+            { label: "dns_f_fingerprint", value: p.slice(2).join("") },
+        ];
+    }
+    if (type === "TLSA" && p.length >= 4) {
+        return [
+            { label: "dns_f_usage", value: p[0] },
+            { label: "dns_f_selector", value: p[1] },
+            { label: "dns_f_matchingtype", value: p[2] },
+            { label: "dns_f_certdata", value: p.slice(3).join("") },
+        ];
+    }
+    if (type === "NAPTR" && p.length >= 6) {
+        return [
+            { label: "dns_f_order", value: p[0] },
+            { label: "dns_f_preference", value: p[1] },
+            { label: "dns_f_flags", value: lgUnquote(p[2]) },
+            { label: "dns_f_service", value: lgUnquote(p[3]) },
+            { label: "dns_f_regexp", value: lgUnquote(p[4]) || "—" },
+            { label: "dns_f_replacement", value: p[5] },
+        ];
+    }
+    return null;
+}
+
+function parseDnsRecord(raw) {
+    var m = raw.match(/^(\S+)\s+(\d+)\s+IN\s+([A-Z0-9]+)\s+(.+?)\s*$/);
+    if (!m) { return null; }
+    var rec = { name: m[1], ttl: parseInt(m[2], 10), type: m[3], value: m[4] };
+    if (rec.type === "MX") {
+        var mx = rec.value.match(/^(\d+)\s+(.+)$/);
+        if (mx) { rec.mxPrio = mx[1]; rec.mxHost = mx[2]; }
+    } else if (rec.type === "HTTPS" || rec.type === "SVCB") {
+        var tok = lgTokens(rec.value);
+        if (tok.length >= 2) {
+            var params = [];
+            for (var i = 2; i < tok.length; i++) {
+                var eq = tok[i].indexOf("=");
+                params.push(eq === -1
+                    ? { key: tok[i], value: "" }
+                    : { key: tok[i].slice(0, eq), value: lgUnquote(tok[i].slice(eq + 1)) });
+            }
+            rec.https = { priority: tok[0], target: tok[1], params: params };
+        }
+    } else {
+        var fields = dnsRecordFields(rec.type, rec.value);
+        if (fields) { rec.fields = fields; }
+    }
+    return rec;
+}
+
+function parseDnsRecords(buffer) {
+    var answers = [];
+    var rcode = "";
+    buffer.forEach(function (raw) {
+        var h = raw.match(/status:\s*([A-Z]+)/);
+        if (h) {
+            if (rcode !== "NXDOMAIN") { rcode = h[1]; }
+            return;
+        }
+        var rec = parseDnsRecord(raw);
+        if (rec) { answers.push(rec); }
+    });
+    return { answers: answers, rcode: rcode };
+}
+
+function buildDnsTraceStep(n, records, server, ms) {
+    var deleg = ["NS", "DS", "RRSIG", "NSEC", "NSEC3"];
+    var ns = records.filter(function (r) { return r.type === "NS"; });
+    var answers = records.filter(function (r) { return deleg.indexOf(r.type) === -1; });
+    var zone = ns.length ? ns[0].name : (answers.length ? answers[0].name : "");
+    return {
+        n: n,
+        server: server,
+        ms: ms,
+        zone: zone,
+        nsCount: ns.length,
+        delegateTo: ns.length ? ns[0].value : "",
+        final: answers.length > 0,
+        answers: answers.map(function (r) { return { type: r.type, value: r.value }; }),
+    };
+}
+
+function parseDnsTrace(buffer) {
+    var steps = [];
+    var pending = [];
+    buffer.forEach(function (raw) {
+        var recv = raw.match(/^;;\s*Received\s+\d+\s+bytes\s+from\s+(\S+?)#\d+\(([^)]*)\)\s+in\s+(\d+)/i);
+        if (recv) {
+            steps.push(buildDnsTraceStep(steps.length + 1, pending, recv[2] || recv[1], parseInt(recv[3], 10)));
+            pending = [];
+            return;
+        }
+        var rec = parseDnsRecord(raw);
+        if (rec) { pending.push(rec); }
+    });
+    return steps;
+}
+
 function lookingGlassPage(options) {
     return {
         nodes: options.nodes || [],
@@ -73,6 +251,12 @@ function lookingGlassPage(options) {
         tool: "ping",
         target: "",
         family: "auto",
+        dnsMode: "records",
+        dnsRecord: "ALL",
+        dnsRecordTypes: LG_DNS_RECORD_TYPES,
+        dnsAnswers: [],
+        dnsSteps: [],
+        dnsRcode: "",
         running: false,
         ipLoading: false,
         copied: false,
@@ -124,6 +308,12 @@ function lookingGlassPage(options) {
                 if (this.running) { this.stop(); }
                 this.clear();
             });
+            this.$watch("dnsMode", () => {
+                if (this.tool === "dns") {
+                    if (this.running) { this.stop(); }
+                    this.clear();
+                }
+            });
         },
 
         get canRun() {
@@ -131,7 +321,35 @@ function lookingGlassPage(options) {
         },
 
         get hasVisual() {
-            return this.tool === "ping" || this.tool === "traceroute" || this.tool === "mtr";
+            return this.tool === "ping" || this.tool === "traceroute"
+                || this.tool === "mtr" || this.tool === "dns";
+        },
+
+        get dnsGroups() {
+            var byType = {};
+            this.dnsAnswers.forEach(function (r) {
+                (byType[r.type] = byType[r.type] || []).push(r);
+            });
+            var groups = [];
+            LG_DNS_RECORD_TYPES.forEach(function (t) {
+                if (t !== "ALL" && byType[t]) {
+                    groups.push({ type: t, records: byType[t] });
+                    delete byType[t];
+                }
+            });
+            Object.keys(byType).forEach(function (t) {
+                groups.push({ type: t, records: byType[t] });
+            });
+            return groups;
+        },
+
+        get dnsEmptyTypes() {
+            if (this.dnsMode !== "records" || this.dnsRecord !== "ALL" || this.status !== "ok") {
+                return [];
+            }
+            var present = {};
+            this.dnsAnswers.forEach(function (r) { present[r.type] = true; });
+            return LG_DNS_ALL_SET.filter(function (t) { return !present[t]; });
         },
 
         get isSpeedtest() {
@@ -254,6 +472,19 @@ function lookingGlassPage(options) {
             return hops;
         },
 
+        _parseDns: function () {
+            if (this.dnsMode === "trace") {
+                this.dnsSteps = parseDnsTrace(this._buffer);
+                this.dnsAnswers = [];
+                this.dnsRcode = "";
+            } else {
+                var res = parseDnsRecords(this._buffer);
+                this.dnsAnswers = res.answers;
+                this.dnsRcode = res.rcode;
+                this.dnsSteps = [];
+            }
+        },
+
         clear: function () {
             this.status = "idle";
             this.commandLabel = "";
@@ -264,6 +495,9 @@ function lookingGlassPage(options) {
             this.resolvedIp = "";
             this.pings = [];
             this.pingLoss = null;
+            this.dnsAnswers = [];
+            this.dnsSteps = [];
+            this.dnsRcode = "";
             this._buffer = [];
             if (this._term) {
                 this._term.reset();
@@ -524,6 +758,9 @@ function lookingGlassPage(options) {
             this.resolvedIp = "";
             this.pings = [];
             this.pingLoss = null;
+            this.dnsAnswers = [];
+            this.dnsSteps = [];
+            this.dnsRcode = "";
             if (this.tool === "ping") { this._initPingChart(); }
             this.running = true;
             this._buffer = [];
@@ -536,6 +773,8 @@ function lookingGlassPage(options) {
                 target: this.target.trim(),
                 family: this.family,
                 turnstile_token: token,
+                dns_mode: this.dnsMode,
+                dns_record: this.dnsRecord,
             };
 
             var resp;
@@ -623,6 +862,8 @@ function lookingGlassPage(options) {
                     if (loss !== null) { this.pingLoss = loss; }
                 } else if (this.tool === "traceroute" || this.tool === "mtr") {
                     this.hops = this._parseHops();
+                } else if (this.tool === "dns") {
+                    this._parseDns();
                 }
             } else if (event === "end") {
                 this.status = payload.status || "error";
@@ -630,6 +871,8 @@ function lookingGlassPage(options) {
                 this.exitCode = (payload.exit_code != null) ? payload.exit_code : null;
                 if (this.tool === "traceroute" || this.tool === "mtr") {
                     this.hops = this._parseHops();
+                } else if (this.tool === "dns") {
+                    this._parseDns();
                 }
                 var summary = "# " + this.statusLabel();
                 if (this.durationMs != null) { summary += " : " + formatDuration(this.durationMs); }

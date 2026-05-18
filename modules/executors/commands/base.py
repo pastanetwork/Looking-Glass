@@ -9,6 +9,7 @@ if TYPE_CHECKING:
 
 class CommandSpec(ABC):
     command_type: CommandType
+    target_kind: str = "ip"
 
     def __init__(self, limits: dict) -> None:
         self.timeout_seconds: int = int(limits["timeout_seconds"])
@@ -35,6 +36,14 @@ class CommandSpec(ABC):
 
         Returns:
             list[str]: argv prêt à être passé à asyncio.create_subprocess_exec.
+        """
+
+    def bind_options(self, options: dict) -> None:  # noqa: B027
+        """
+        Applique les options propres à la requête (crochet optionnel, sans effet par défaut).
+
+        Parameters:
+            options (dict): options issues de la requête validée.
         """
 
     def filter_line(self, line: str) -> str:

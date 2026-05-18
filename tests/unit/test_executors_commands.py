@@ -5,7 +5,7 @@ import sys
 
 import pytest
 
-from modules.executors.commands import build_command_spec
+from modules.executors.commands import DigCommand, build_command_spec
 from modules.executors.local import LocalCommandStream
 from modules.models.enums import CommandStatus, CommandType
 from modules.utility.system import IS_WINDOWS
@@ -14,6 +14,7 @@ LIMITS = {
     "ping": {"count": 5, "timeout_seconds": 12, "max_lines": 40, "max_bytes": 8192},
     "traceroute": {"max_hops": 20, "timeout_seconds": 30, "max_lines": 80, "max_bytes": 16384},
     "mtr": {"report_cycles": 5, "timeout_seconds": 30, "max_lines": 80, "max_bytes": 16384},
+    "dns": {"timeout_seconds": 15, "max_lines": 80, "max_bytes": 16384},
 }
 _SHELL_METACHARS = (";", "|", "&", "$", "`", ">", "<", "\n", "(", ")", "*", "?")
 _IS_WINDOWS = IS_WINDOWS
@@ -55,10 +56,57 @@ class TestCommandSpecs:
 
     @pytest.mark.skipif(_IS_WINDOWS, reason="forme POSIX uniquement")
     def test_posix_argv_terminates_options(self):
+        # dig n'utilise pas le séparateur « -- » : la cible est non ambiguë.
         for ct in CommandType:
+            if ct == CommandType.DNS:
+                continue
             argv = build_command_spec(ct, LIMITS[ct.value]).build_argv("8.8.8.8", 4)
             assert "--" in argv
             assert argv.index("--") == len(argv) - 2
+
+
+class TestDigCommand:
+    def _spec(self, mode="records", record="ALL"):
+        return build_command_spec(
+            CommandType.DNS, LIMITS["dns"], options={"dns_mode": mode, "dns_record": record}
+        )
+
+    def test_target_kind_is_hostname(self):
+        assert DigCommand(LIMITS["dns"]).target_kind == "hostname"
+
+    def test_records_all_queries_every_type(self):
+        argv = self._spec(record="ALL").build_argv("example.com", 0)
+        types = ("A", "AAAA", "MX", "NS", "TXT", "CNAME", "SOA", "CAA", "HTTPS",
+                 "SRV", "NAPTR", "DS", "DNSKEY", "TLSA", "SSHFP")
+        for rtype in types:
+            assert rtype in argv
+        assert argv.count("example.com") == len(types)
+        assert "-x" not in argv
+
+    def test_records_single_type(self):
+        argv = self._spec(record="MX").build_argv("example.com", 0)
+        assert argv[-2:] == ["example.com", "MX"]
+        assert "AAAA" not in argv
+
+    def test_trace_mode_adds_trace_flag(self):
+        argv = self._spec(mode="trace", record="A").build_argv("example.com", 0)
+        assert "+trace" in argv
+        assert argv[-2:] == ["example.com", "A"]
+
+    def test_trace_mode_falls_back_to_a_for_all(self):
+        argv = self._spec(mode="trace", record="ALL").build_argv("example.com", 0)
+        assert argv[-2:] == ["example.com", "A"]
+
+    def test_ip_target_uses_reverse_lookup(self):
+        argv = self._spec().build_argv("8.8.8.8", 4)
+        assert "-x" in argv
+        assert argv[-1] == "8.8.8.8"
+
+    def test_family_flag(self):
+        assert "-6" in self._spec(record="A").build_argv("example.com", 6)
+        assert "-4" in self._spec(record="A").build_argv("example.com", 4)
+        argv = self._spec(record="A").build_argv("example.com", 0)
+        assert "-4" not in argv and "-6" not in argv
 
 
 class TestLocalCommandStream:

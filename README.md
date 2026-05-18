@@ -1,8 +1,9 @@
 # Pastanetwork Looking Glass
 
 Un Looking Glass est une page de diagnostic réseau publique. Ce projet permet à
-n'importe quel visiteur de lancer un ping, un traceroute ou un MTR depuis le réseau de
-Pastanetwork vers l'adresse de son choix, et d'en suivre le résultat en direct.
+n'importe quel visiteur de lancer un ping, un traceroute, un MTR ou une interrogation
+DNS depuis le réseau de Pastanetwork vers la cible de son choix, et d'en suivre le
+résultat en direct.
 
 Tout tient dans une seule image Docker (l'application et son Redis interne), à placer
 derrière votre reverse proxy. Pas de compte, pas de service externe à gérer.
@@ -14,6 +15,7 @@ derrière votre reverse proxy. Pas de compte, pas de service externe à gérer.
 ## Fonctionnalités
 
 - ping, traceroute et MTR, en IPv4 comme en IPv6
+- interrogation DNS : enregistrements (A, AAAA, MX, NS, TXT…) ou résolution pas à pas (dig +trace)
 - résultat diffusé ligne par ligne (Server-Sent Events), comme dans un terminal
 - journal des requêtes en SQLite et page de statistiques
 - interface française et anglaise, thème clair et sombre
@@ -239,7 +241,7 @@ par défaut. Vous ne renseignez donc que ce que vous voulez changer.
       "location": "FR, Paris",             // localisation affichée
       "ipv4": true,                        // IPv4 proposée pour ce nœud
       "ipv6": true,                        // IPv6 proposée pour ce nœud
-      "tools": ["ping", "traceroute", "mtr"]  // outils exposés (limités aux binaires présents)
+      "tools": ["ping", "traceroute", "mtr", "dns"]  // outils exposés (limités aux binaires présents)
     }
   ],
 
@@ -257,7 +259,8 @@ par défaut. Vous ne renseignez donc que ce que vous voulez changer.
   "limits": {
     "ping":       { "count": 10,        "timeout_seconds": 30, "max_lines": 60,  "max_bytes": 16384 },
     "traceroute": { "max_hops": 30,     "timeout_seconds": 60, "max_lines": 120, "max_bytes": 32768 },
-    "mtr":        { "report_cycles": 10, "timeout_seconds": 60, "max_lines": 120, "max_bytes": 32768 }
+    "mtr":        { "report_cycles": 10, "timeout_seconds": 60, "max_lines": 120, "max_bytes": 32768 },
+    "dns":        {                      "timeout_seconds": 45, "max_lines": 300, "max_bytes": 65536 }
   },
 
   // Fichiers de test de débit. "enabled" et les budgets se pilotent aussi via
@@ -344,7 +347,7 @@ protections sont appliquées dans l'application elle-même.
 - plafonds de commandes simultanées globaux et par IP, délais d'expiration stricts,
   sortie bornée
 - les sauts internes (IP privées et réservées) sont masqués dans la sortie de
-  traceroute et MTR : la topologie interne n'est pas exposée
+  traceroute, MTR et DNS : la topologie interne n'est pas exposée
 - le conteneur tourne sans privilège root, avec la seule capability `NET_RAW`
 - les IP sources sont hachées en SHA-256 avant d'être journalisées, jamais en clair
 

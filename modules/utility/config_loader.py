@@ -25,7 +25,7 @@ DEFAULTS: dict[str, Any] = {
             "location": None,
             "ipv4": True,
             "ipv6": True,
-            "tools": ["ping", "traceroute", "mtr"],
+            "tools": ["ping", "traceroute", "mtr", "dns"],
         },
     ],
     "targets": {
@@ -39,6 +39,7 @@ DEFAULTS: dict[str, Any] = {
         "ping": {"count": 10, "timeout_seconds": 30, "max_lines": 60, "max_bytes": 16384},
         "traceroute": {"max_hops": 30, "timeout_seconds": 60, "max_lines": 120, "max_bytes": 32768},
         "mtr": {"report_cycles": 10, "timeout_seconds": 60, "max_lines": 120, "max_bytes": 32768},
+        "dns": {"timeout_seconds": 45, "max_lines": 300, "max_bytes": 65536},
     },
     "speedtest": {
         "enabled": False,

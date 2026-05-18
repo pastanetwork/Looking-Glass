@@ -4,6 +4,7 @@ HARD_CEILINGS: dict[str, dict[str, int]] = {
     "ping": {"count": 30, "timeout_seconds": 60, "max_lines": 200, "max_bytes": 65536},
     "traceroute": {"max_hops": 64, "timeout_seconds": 120, "max_lines": 400, "max_bytes": 131072},
     "mtr": {"report_cycles": 30, "timeout_seconds": 120, "max_lines": 400, "max_bytes": 131072},
+    "dns": {"timeout_seconds": 60, "max_lines": 400, "max_bytes": 131072},
 }
 
 # Tâche de nettoyage périodique du journal.

@@ -18,7 +18,7 @@ RUN python3 minification/minify.py --ci
 FROM python:3.12-slim AS runtime
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        redis-server iputils-ping traceroute mtr-tiny \
+        redis-server iputils-ping traceroute mtr-tiny bind9-dnsutils \
         ca-certificates git curl tini \
     && rm -rf /var/lib/apt/lists/*
 

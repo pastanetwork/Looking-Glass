@@ -191,6 +191,38 @@ async def _resolve(hostname: str, family: IpFamily) -> List[_IPAddress]:
     return results
 
 
+def validate_dns_target(raw: str, targets_cfg: dict) -> ValidationResult:
+    """
+    Valide une cible d'interrogation DNS sans résolution préalable.
+
+    Parameters:
+        raw (str): saisie brute de l'utilisateur (nom d'hôte ou IP).
+        targets_cfg (dict): configuration des cibles (allow_list, block_list, etc.).
+
+    Returns:
+        ValidationResult: résultat avec la cible littérale à interroger, ou une clé d'erreur.
+    """
+    raw = (raw or "").strip()
+    if not raw or len(raw) > MAX_TARGET_LENGTH:
+        return ValidationResult(ok=False, error="err_target")
+
+    try:
+        ip_obj = ip_address(raw)
+    except (AddressValueError, ValueError):
+        ip_obj = None
+
+    if ip_obj is not None:
+        err = check_ip(ip_obj, targets_cfg)
+        if err:
+            return ValidationResult(ok=False, display=raw, error=err)
+        return ValidationResult(ok=True, ip=str(ip_obj), family=ip_obj.version, display=raw)
+
+    if not HOSTNAME_REGEX.match(raw):
+        return ValidationResult(ok=False, display=raw, error="err_target")
+
+    return ValidationResult(ok=True, ip=raw, family=0, display=raw)
+
+
 async def validate_target(raw: str, family: IpFamily, targets_cfg: dict) -> ValidationResult:
     """
     Valide une cible réseau (IP littérale ou nom d'hôte) et retourne l'IP à exécuter.

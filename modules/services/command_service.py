@@ -10,7 +10,7 @@ from modules.executors.commands import build_command_spec
 from modules.models.enums import CommandStatus
 from modules.models.schemas import CommandRequest
 from modules.utility.hashing import hash_ip
-from modules.utility.ip_validation import validate_target
+from modules.utility.ip_validation import validate_dns_target, validate_target
 
 if TYPE_CHECKING:
     import logging
@@ -95,7 +95,21 @@ class CommandService:
             await self._record_rejected(node_id, tool, target, ip_hash)
             return PrepareResult(ok=False, http=400, error="err_generic")
 
-        validated = await validate_target(target, req.family, self._targets_cfg)
+        try:
+            spec = build_command_spec(
+                req.tool,
+                self._limits[tool],
+                options={"dns_mode": req.dns_mode.value, "dns_record": req.dns_record.value},
+            )
+        except Exception:
+            self._logger.exception("Construction de la spécification de commande échouée")
+            return PrepareResult(ok=False, http=500, error="err_generic")
+
+        if spec.target_kind == "hostname":
+            validated = validate_dns_target(target, self._targets_cfg)
+        else:
+            validated = await validate_target(target, req.family, self._targets_cfg)
+
         if not validated.ok:
             await self._record_rejected(node_id, tool, target, ip_hash)
             return PrepareResult(ok=False, http=422, error=validated.error or "err_target")
@@ -108,13 +122,6 @@ class CommandService:
         if not acquired.ok:
             await self._record_rejected(node_id, tool, target, ip_hash)
             return PrepareResult(ok=False, http=acquired.http, error=acquired.error)
-
-        try:
-            spec = build_command_spec(req.tool, self._limits[tool])
-        except Exception:
-            await self._concurrency.release(ip_hash)
-            self._logger.exception("Construction de la spécification de commande échouée")
-            return PrepareResult(ok=False, http=500, error="err_generic")
 
         return PrepareResult(
             ok=True,
