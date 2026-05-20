@@ -358,6 +358,7 @@ class SpeedtestService:
             exit_code=None,
             duration_ms=duration_ms,
             bytes_served=sent,
+            session_id=token,
         )
 
     async def gc_orphaned_reservations(self) -> int:
@@ -402,6 +403,9 @@ class SpeedtestService:
                         await client.delete(key)
                     continue
 
+                parts = key.split(":")
+                token = parts[3] if len(parts) >= 5 else None
+
                 with contextlib.suppress(Exception):
                     if self._daily_budget and reserved_size:
                         await client.decrby(redis_keys.speedtest_bytes_day(day), reserved_size)
@@ -424,6 +428,7 @@ class SpeedtestService:
                     exit_code=None,
                     duration_ms=duration_ms,
                     bytes_served=0,
+                    session_id=token,
                 )
                 cleaned += 1
         except Exception as e:

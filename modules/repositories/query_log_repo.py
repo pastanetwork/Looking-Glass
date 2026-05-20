@@ -25,6 +25,7 @@ class QueryLogRepository:
         exit_code: Optional[int],
         duration_ms: Optional[int],
         bytes_served: Optional[int] = None,
+        session_id: Optional[str] = None,
     ) -> None:
         """
         Enregistre une entrée dans le journal des requêtes (best-effort).
@@ -39,15 +40,18 @@ class QueryLogRepository:
             exit_code (Optional[int]): code de retour du processus, ou None.
             duration_ms (Optional[int]): durée d'exécution en millisecondes, ou None.
             bytes_served (Optional[int]): octets servis, renseigné pour le speedtest uniquement.
+            session_id (Optional[str]): identifiant logique de session, partagé entre les
+                entrées d'un même test (ex. les 4 streams d'un speedtest). None pour les
+                commandes sans regroupement.
         """
         try:
             await self._db.execute(
                 "INSERT INTO query_log "
                 "(node_id, command_type, target, family, source_ip_hash, status, exit_code, "
-                "duration_ms, bytes_served) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "duration_ms, bytes_served, session_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (node_id, command_type, target, family, source_ip_hash, status, exit_code,
-                 duration_ms, bytes_served),
+                 duration_ms, bytes_served, session_id),
             )
             await self._db.commit()
         except Exception as e:
@@ -102,7 +106,9 @@ class QueryLogRepository:
             dict: dictionnaire dont les clés sont les types de commande et les valeurs les comptages.
         """
         cursor = await self._db.execute(
-            "SELECT command_type AS k, COUNT(*) AS n FROM query_log GROUP BY command_type"
+            "SELECT command_type AS k, "
+            "COUNT(DISTINCT COALESCE(session_id, CAST(id AS TEXT))) AS n "
+            "FROM query_log GROUP BY command_type"
         )
         return {row["k"]: row["n"] for row in await cursor.fetchall()}
 
@@ -128,14 +134,25 @@ class QueryLogRepository:
             dict: count, count_24h, total_bytes, interrupted, ok_bytes et ok_duration_ms.
         """
         cursor = await self._db.execute(
+            "WITH sessions AS ("
+            "  SELECT "
+            "    SUM(bytes_served) AS total_bytes, "
+            "    MIN(created_at) AS started_at, "
+            "    MAX(duration_ms) AS duration_ms, "
+            "    CASE WHEN SUM(CASE WHEN status != 'ok' THEN 1 ELSE 0 END) > 0 "
+            "         THEN 1 ELSE 0 END AS killed "
+            "  FROM query_log "
+            "  WHERE command_type = 'speedtest' "
+            "  GROUP BY COALESCE(session_id, CAST(id AS TEXT))"
+            ") "
             "SELECT "
             "COUNT(*) AS count, "
-            "COALESCE(SUM(bytes_served), 0) AS total_bytes, "
-            "COALESCE(SUM(CASE WHEN created_at >= datetime('now', '-1 day') THEN 1 ELSE 0 END), 0) AS count_24h, "
-            "COALESCE(SUM(CASE WHEN status != 'ok' THEN 1 ELSE 0 END), 0) AS interrupted, "
-            "COALESCE(SUM(CASE WHEN status = 'ok' THEN bytes_served ELSE 0 END), 0) AS ok_bytes, "
-            "COALESCE(SUM(CASE WHEN status = 'ok' THEN duration_ms ELSE 0 END), 0) AS ok_duration_ms "
-            "FROM query_log WHERE command_type = 'speedtest'"
+            "COALESCE(SUM(total_bytes), 0) AS total_bytes, "
+            "COALESCE(SUM(CASE WHEN started_at >= datetime('now', '-1 day') THEN 1 ELSE 0 END), 0) AS count_24h, "
+            "COALESCE(SUM(killed), 0) AS interrupted, "
+            "COALESCE(SUM(CASE WHEN killed = 0 THEN total_bytes ELSE 0 END), 0) AS ok_bytes, "
+            "COALESCE(SUM(CASE WHEN killed = 0 THEN duration_ms ELSE 0 END), 0) AS ok_duration_ms "
+            "FROM sessions"
         )
         row = await cursor.fetchone()
         return dict(row) if row else {}
@@ -171,7 +188,7 @@ class QueryLogRepository:
 
     async def recent(self, limit: int = 20) -> List[dict]:
         """
-        Retourne les dernières requêtes journalisées, triées par ordre décroissant d'insertion.
+        Retourne les dernières actions journalisées, triées par ordre décroissant.
 
         Parameters:
             limit (int): nombre maximum d'entrées à retourner (défaut : 20).
@@ -180,8 +197,21 @@ class QueryLogRepository:
             List[dict]: liste de dictionnaires représentant les entrées du journal.
         """
         cursor = await self._db.execute(
-            "SELECT command_type, target, family, status, duration_ms, created_at "
-            "FROM query_log ORDER BY id DESC LIMIT ?",
+            "SELECT command_type, target, family, "
+            "  CASE "
+            "    WHEN SUM(CASE WHEN status = 'ok' THEN 1 ELSE 0 END) = COUNT(*) THEN 'ok' "
+            "    WHEN SUM(CASE WHEN status = 'orphaned' THEN 1 ELSE 0 END) > 0 THEN 'orphaned' "
+            "    ELSE 'killed' "
+            "  END AS status, "
+            "  MAX(duration_ms) AS duration_ms, "
+            "  MIN(created_at) AS created_at, "
+            "  MAX(id) AS last_id "
+            "FROM query_log "
+            "GROUP BY COALESCE(session_id, CAST(id AS TEXT)) "
+            "ORDER BY last_id DESC LIMIT ?",
             (int(limit),),
         )
-        return [dict(row) for row in await cursor.fetchall()]
+        return [
+            {k: v for k, v in dict(row).items() if k != "last_id"}
+            for row in await cursor.fetchall()
+        ]
