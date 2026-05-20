@@ -289,6 +289,7 @@ function lookingGlassPage(options) {
         stBytes: 0,
         stDuration: 0,
         _stReaders: [],
+        _stControllers: [],
         _stChart: null,
         _stSamples: [],
         _stStopped: false,
@@ -581,6 +582,7 @@ function lookingGlassPage(options) {
             this._stSamples = [];
             this._stStopped = false;
             this._stReaders = [];
+            this._stControllers = [];
             this._initSpeedChart();
 
             // Turnstile n'autorise qu'un usage : on échange le jeton une seule fois
@@ -617,15 +619,25 @@ function lookingGlassPage(options) {
             // le temps mesuré, trop court, gonfle le débit.
             var t0 = performance.now();
             var responses;
+            this._stControllers = [];
+            for (var s = 0; s < STREAMS; s++) {
+                this._stControllers.push(new AbortController());
+            }
             try {
-                var fetches = [];
-                for (var s = 0; s < STREAMS; s++) { fetches.push(fetch(url)); }
+                var fetches = this._stControllers.map(function (c) {
+                    return fetch(url, { signal: c.signal });
+                });
                 responses = await Promise.all(fetches);
             } catch (e) {
+                this._abortStreams();
                 this._stFail("err_network");
                 return;
             }
             if (!responses.every(function (r) { return r.ok && r.body; })) {
+                responses.forEach(function (r) {
+                    if (r && r.body) { try { r.body.cancel(); } catch (e) { /* ignore */ } }
+                });
+                this._abortStreams();
                 this._stFail("err_generic");
                 return;
             }
@@ -672,6 +684,7 @@ function lookingGlassPage(options) {
 
             this.stRunning = false;
             this._stReaders = [];
+            this._stControllers = [];
             this._resetTurnstile();
             var elapsed = (performance.now() - t0) / 1000;
             this.stBytes = received;
@@ -697,6 +710,7 @@ function lookingGlassPage(options) {
             this._stReaders.forEach(function (reader) {
                 try { reader.cancel(); } catch (e) { /* déjà fermé */ }
             });
+            this._abortStreams();
         },
 
         genCliCommand: async function () {
@@ -754,8 +768,16 @@ function lookingGlassPage(options) {
             this.stStatus = "error";
             this.stError = key;
             this._stReaders = [];
+            this._abortStreams();
             this._resetTurnstile();
             showToast("error", window.t(key));
+        },
+
+        _abortStreams: function () {
+            (this._stControllers || []).forEach(function (c) {
+                try { c.abort(); } catch (e) { /* déjà abort */ }
+            });
+            this._stControllers = [];
         },
 
         _initSpeedChart: function () {
