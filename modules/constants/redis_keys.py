@@ -64,3 +64,22 @@ def speedtest_bytes_ip(ip_hash: str, day: str) -> str:
         str: clé Redis du compteur d'octets par IP et par jour.
     """
     return f"{_PREFIX}:speed:bytes:ip:{ip_hash}:{day}"
+
+
+def speedtest_reserved(token: str, rid: str) -> str:
+    """
+    Retourne la clé Redis d'une réservation speedtest active.
+
+    Parameters:
+        token (str): token CLI déjà validé.
+        rid (str): identifiant unique de la réservation pour ce téléchargement.
+
+    Returns:
+        str: clé Redis du hash de réservation.
+    """
+    return f"{_PREFIX}:speed:reserved:{token}:{rid}"
+
+
+def speedtest_reserved_match() -> str:
+    """Retourne le motif SCAN couvrant toutes les réservations speedtest actives."""
+    return f"{_PREFIX}:speed:reserved:*"

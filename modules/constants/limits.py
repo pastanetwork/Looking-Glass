@@ -18,14 +18,16 @@ QUERY_LOG_CLEANUP_BATCH = 5000
 # Concurrence : durée de vie d'un slot Redis (filet de sécurité si un worker meurt).
 CONCURRENCY_SLOT_TTL = 300
 
-# Speedtest (fichiers de test de débit).
-SPEEDTEST_CHUNK_SIZE = 1048576      # 1 Mio par chunk : réduit la surcharge CPU par octet servi
-SPEEDTEST_CONCURRENCY_CAP = 16      # connexions simultanées max (un test CLI en ouvre 4 en parallèle)
-SPEEDTEST_BUDGET_TTL = 93600        # ~26 h, expiration des compteurs journaliers
-SPEEDTEST_FLUSH_EVERY = 16          # mise à jour des compteurs Redis tous les 16 chunks
-SPEEDTEST_SLOT_TTL = 300            # durée de vie d'un slot de concurrence speedtest
-SPEEDTEST_MAX_FILE_BYTES = 10737418240   # plafond par défaut de taille de fichier (10 Gio)
-SPEEDTEST_CLI_TOKEN_TTL = 300       # durée de validité d'un token de test de débit en ligne de commande
+# Speedtest (fichiers de test de débit servis via nginx X-Accel-Redirect).
+SPEEDTEST_CONCURRENCY_CAP = 16          # connexions simultanées max (un test CLI en ouvre 4 en parallèle)
+SPEEDTEST_BUDGET_TTL = 93600            # ~26 h, expiration des compteurs journaliers
+SPEEDTEST_SLOT_TTL = 300                # durée de vie d'un slot de concurrence speedtest
+SPEEDTEST_MAX_FILE_BYTES = 10737418240  # plafond par défaut de taille de fichier (10 Gio)
+SPEEDTEST_CLI_TOKEN_TTL = 300           # durée de validité d'un token de test de débit en ligne de commande
+SPEEDTEST_RESERVATION_TTL = 1500        # durée de vie d'une réservation Redis (token TTL + marge GC)
+SPEEDTEST_RESERVATION_GC_AGE = 600      # âge (s) au-delà duquel une réservation orpheline est nettoyée
+SPEEDTEST_GC_INTERVAL = 300             # périodicité de la tâche GC des réservations orphelines
+SPEEDTEST_GC_INITIAL_DELAY = 120        # délai avant le premier passage du GC après démarrage
 
 # Turnstile (vérification anti-robot Cloudflare).
 TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"

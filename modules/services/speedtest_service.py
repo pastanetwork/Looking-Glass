@@ -1,23 +1,22 @@
 from __future__ import annotations
 
-import asyncio
 import contextlib
 import secrets
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, AsyncIterator, List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 import redis.asyncio as redis
 
 from modules.constants import redis_keys
 from modules.constants.limits import (
     SPEEDTEST_BUDGET_TTL,
-    SPEEDTEST_CHUNK_SIZE,
     SPEEDTEST_CLI_TOKEN_TTL,
     SPEEDTEST_CONCURRENCY_CAP,
-    SPEEDTEST_FLUSH_EVERY,
     SPEEDTEST_MAX_FILE_BYTES,
+    SPEEDTEST_RESERVATION_GC_AGE,
+    SPEEDTEST_RESERVATION_TTL,
     SPEEDTEST_SLOT_TTL,
 )
 from modules.utility.hashing import hash_ip
@@ -33,7 +32,7 @@ class SpeedtestStart:
     ok: bool
     http: int = 200
     error: str = ""
-    size: int = 0
+    accel_uri: str = ""
 
 
 class SpeedtestService:
@@ -54,8 +53,9 @@ class SpeedtestService:
         self._files = self._load_files(st.get("files", []))
         self._daily_budget = int(st.get("daily_byte_budget", 0))
         self._per_ip_budget = int(st.get("per_ip_byte_budget", 0))
-        self._max_kbps = int(st.get("max_kbps", 0))
         self._concurrency_cap = int(st.get("concurrency", SPEEDTEST_CONCURRENCY_CAP))
+        self._finalize_secret = str(st.get("finalize_secret", ""))
+        self._xaccel_prefix = str(st.get("xaccel_prefix", "/__internal__/speedtest")).rstrip("/")
 
     @staticmethod
     def _load_files(raw: List[dict]) -> dict:
@@ -99,6 +99,11 @@ class SpeedtestService:
     def cli_token_ttl(self) -> int:
         """Durée de validité, en secondes, d'un token de test de débit en ligne de commande."""
         return SPEEDTEST_CLI_TOKEN_TTL
+
+    @property
+    def finalize_secret(self) -> str:
+        """Secret partagé attendu dans l'en-tête X-Speedtest-Auth émis par nginx."""
+        return self._finalize_secret
 
     def files(self) -> List[dict]:
         """
@@ -193,16 +198,17 @@ class SpeedtestService:
         """
         return datetime.now(UTC).strftime("%Y%m%d")
 
-    async def begin(self, file_id: str, client_ip: str) -> SpeedtestStart:
+    async def begin(self, file_id: str, client_ip: str, token: str) -> SpeedtestStart:
         """
-        Vérifie la disponibilité, la concurrence et le budget, puis réserve un slot.
+        Réserve un slot, pré-réserve les budgets puis prépare une URI X-Accel-Redirect.
 
         Parameters:
             file_id (str): identifiant du fichier de test demandé.
             client_ip (str): adresse IP du client.
+            token (str): token CLI déjà validé, ré-utilisé comme racine de la réservation.
 
         Returns:
-            SpeedtestStart: résultat de la réservation avec la taille validée.
+            SpeedtestStart: résultat de la réservation avec l'URI interne X-Accel.
         """
         if not self._enabled:
             return SpeedtestStart(ok=False, http=404, error="err_generic")
@@ -212,6 +218,11 @@ class SpeedtestService:
             return SpeedtestStart(ok=False, http=404, error="err_generic")
 
         client = redis.Redis(connection_pool=self._pool)
+        ip_hash = self._hash(client_ip)
+        day = self._today()
+        day_key = redis_keys.speedtest_bytes_day(day)
+        ip_key = redis_keys.speedtest_bytes_ip(ip_hash, day)
+
         try:
             count = await client.incr(redis_keys.speedtest_concurrency())
             await client.expire(redis_keys.speedtest_concurrency(), SPEEDTEST_SLOT_TTL)
@@ -222,136 +233,208 @@ class SpeedtestService:
             self._logger.warning("Speedtest indisponible (Redis) : %s", e)
             return SpeedtestStart(ok=False, http=503, error="err_busy")
 
-        if not await self._budget_ok(client, self._hash(client_ip), size):
-            await self._release(client)
-            return SpeedtestStart(ok=False, http=503, error="err_busy")
-
-        return SpeedtestStart(ok=True, size=size)
-
-    async def stream(self, file_id: str, size: int, client_ip: str) -> AsyncIterator[bytes]:
-        """
-        Génère les octets du fichier de test en bridant le débit et en comptabilisant le trafic.
-
-        Parameters:
-            file_id (str): identifiant du fichier de test, conservé pour le journal.
-            size (int): nombre total d'octets à envoyer.
-            client_ip (str): adresse IP du client pour le suivi du budget.
-        """
-        client = redis.Redis(connection_pool=self._pool)
-        ip_hash = self._hash(client_ip)
-
-        day = self._today()
-        started = time.monotonic()
-
-        full_chunk = b"\x00" * SPEEDTEST_CHUNK_SIZE
-        bytes_per_sec = self._max_kbps * 1024 if self._max_kbps > 0 else 0
-
-        sent = 0
-        pending = 0
-        chunks = 0
-
-        try:
-            while sent < size:
-                remaining = size - sent
-                piece = full_chunk if remaining >= SPEEDTEST_CHUNK_SIZE else b"\x00" * remaining
-                yield piece
-
-                sent += len(piece)
-                pending += len(piece)
-                chunks += 1
-
-                if chunks % SPEEDTEST_FLUSH_EVERY == 0:
-                    await self._flush(client, day, ip_hash, pending)
-                    pending = 0
-                    if self._daily_budget and await self._over_daily(client, day):
-                        break
-                if bytes_per_sec:
-                    ahead = (sent / bytes_per_sec) - (time.monotonic() - started)
-                    if ahead > 0:
-                        await asyncio.sleep(ahead)
-        finally:
-            if pending:
-                with contextlib.suppress(Exception):
-                    await self._flush(client, day, ip_hash, pending)
-            await self._release(client)
-            await self._query_log.create(
-                node_id="local",
-                command_type="speedtest",
-                target=file_id,
-                family=None,
-                source_ip_hash=ip_hash,
-                status="ok" if sent >= size else "killed",
-                exit_code=None,
-                duration_ms=int((time.monotonic() - started) * 1000),
-                bytes_served=sent,
-            )
-
-    async def _flush(self, client: redis.Redis, day: str, ip_hash: str, count: int) -> None:
-        """
-        Incrémente les compteurs de budget Redis pour la journée et l'IP (best-effort).
-
-        Parameters:
-            client (redis.Redis): client Redis actif.
-            day (str): clé de date au format YYYYMMDD.
-            ip_hash (str): empreinte hachée de l'IP source.
-            count (int): nombre d'octets à comptabiliser.
-        """
-        with contextlib.suppress(Exception):
-            day_key = redis_keys.speedtest_bytes_day(day)
-            ip_key = redis_keys.speedtest_bytes_ip(ip_hash, day)
-            await client.incrby(day_key, count)
-            await client.expire(day_key, SPEEDTEST_BUDGET_TTL)
-            await client.incrby(ip_key, count)
-            await client.expire(ip_key, SPEEDTEST_BUDGET_TTL)
-
-    async def _budget_ok(self, client: redis.Redis, ip_hash: str, size: int) -> bool:
-        """
-        Vérifie que les budgets quotidien et par IP permettent le téléchargement demandé.
-
-        Parameters:
-            client (redis.Redis): client Redis actif.
-            ip_hash (str): empreinte hachée de l'IP source.
-            size (int): taille en octets du fichier demandé.
-
-        Returns:
-            bool: True si les budgets sont suffisants ou non configurés, False sinon.
-        """
-        day = self._today()
-
         try:
             if self._daily_budget:
-                used = int(await client.get(redis_keys.speedtest_bytes_day(day)) or 0)
-                if used + size > self._daily_budget:
-                    return False
+                new_day = await client.incrby(day_key, size)
+                await client.expire(day_key, SPEEDTEST_BUDGET_TTL)
+                if new_day > self._daily_budget:
+                    await client.decrby(day_key, size)
+                    await self._release_slot(client)
+                    return SpeedtestStart(ok=False, http=503, error="err_busy")
 
             if self._per_ip_budget:
-                used_ip = int(await client.get(redis_keys.speedtest_bytes_ip(ip_hash, day)) or 0)
-                if used_ip + size > self._per_ip_budget:
-                    return False
+                new_ip = await client.incrby(ip_key, size)
+                await client.expire(ip_key, SPEEDTEST_BUDGET_TTL)
+                if new_ip > self._per_ip_budget:
+                    await client.decrby(ip_key, size)
+                    if self._daily_budget:
+                        await client.decrby(day_key, size)
+                    await self._release_slot(client)
+                    return SpeedtestStart(ok=False, http=503, error="err_busy")
         except Exception as e:
-            self._logger.warning("Vérification du budget speedtest échouée : %s", e)
-            return not (self._daily_budget or self._per_ip_budget)
+            self._logger.warning("Réservation du budget speedtest échouée : %s", e)
 
-        return True
+            with contextlib.suppress(Exception):
+                if self._daily_budget:
+                    await client.decrby(day_key, size)
+                if self._per_ip_budget:
+                    await client.decrby(ip_key, size)
 
-    async def _over_daily(self, client: redis.Redis, day: str) -> bool:
+            await self._release_slot(client)
+
+            return SpeedtestStart(ok=False, http=503, error="err_busy")
+
+        rid = secrets.token_urlsafe(8)
+        reservation_key = redis_keys.speedtest_reserved(token, rid)
+        try:
+            await client.hset(reservation_key, mapping={
+                "file_id": file_id,
+                "size": str(size),
+                "ip_hash": ip_hash,
+                "day": day,
+                "ts": str(time.time()),
+            })
+            await client.expire(reservation_key, SPEEDTEST_RESERVATION_TTL)
+        except Exception as e:
+            self._logger.warning("Stockage de la réservation speedtest échoué : %s", e)
+
+            with contextlib.suppress(Exception):
+                if self._daily_budget:
+                    await client.decrby(day_key, size)
+                if self._per_ip_budget:
+                    await client.decrby(ip_key, size)
+
+            await self._release_slot(client)
+
+            return SpeedtestStart(ok=False, http=503, error="err_busy")
+
+        accel_uri = f"{self._xaccel_prefix}/{token}/{rid}/{file_id}.bin"
+        return SpeedtestStart(ok=True, accel_uri=accel_uri)
+
+    async def finalize(self, token: str, rid: str, file_id: str, bytes_sent: int, status: int) -> None:
         """
-        Indique si le budget quotidien global est dépassé.
+        Ajuste les compteurs Redis et journalise après envoi du fichier par nginx.
 
         Parameters:
-            client (redis.Redis): client Redis actif.
-            day (str): clé de date au format YYYYMMDD.
+            token (str): token CLI ayant servi à la réservation.
+            rid (str): identifiant de la réservation.
+            file_id (str): identifiant du fichier, conservé pour cohérence (déjà connu).
+            bytes_sent (int): nombre d'octets effectivement envoyés par nginx ($bytes_sent).
+            status (int): statut HTTP final côté nginx (200 OK, 499 client closed, etc.).
+        """
+        if not self._enabled:
+            return
+
+        client = redis.Redis(connection_pool=self._pool)
+        key = redis_keys.speedtest_reserved(token, rid)
+
+        try:
+            data = await client.hgetall(key)
+        except Exception as e:
+            self._logger.warning("Lecture de la réservation speedtest échouée : %s", e)
+            return
+
+        if not data:
+            # Déjà finalisée (post_action rappelée) ou nettoyée par le GC.
+            return
+
+        try:
+            reserved_size = int(data.get("size", "0"))
+            ip_hash = str(data.get("ip_hash", ""))
+            day = str(data.get("day") or self._today())
+            ts = float(data.get("ts", "0"))
+            reserved_file = str(data.get("file_id", file_id))
+        except (TypeError, ValueError):
+            self._logger.warning("Réservation speedtest corrompue : %s", data)
+            with contextlib.suppress(Exception):
+                await client.delete(key)
+            await self._release_slot(client)
+            return
+
+        sent = max(0, int(bytes_sent))
+        refund = max(0, reserved_size - sent)
+        duration_ms = max(0, int((time.time() - ts) * 1000)) if ts > 0 else 0
+
+        if refund > 0:
+            with contextlib.suppress(Exception):
+                if self._daily_budget:
+                    await client.decrby(redis_keys.speedtest_bytes_day(day), refund)
+                if self._per_ip_budget:
+                    await client.decrby(redis_keys.speedtest_bytes_ip(ip_hash, day), refund)
+
+        await self._release_slot(client)
+
+        with contextlib.suppress(Exception):
+            await client.delete(key)
+
+        log_status = "ok" if status == 200 and sent >= reserved_size else "killed"
+        await self._query_log.create(
+            node_id="local",
+            command_type="speedtest",
+            target=reserved_file,
+            family=None,
+            source_ip_hash=ip_hash,
+            status=log_status,
+            exit_code=None,
+            duration_ms=duration_ms,
+            bytes_served=sent,
+        )
+
+    async def gc_orphaned_reservations(self) -> int:
+        """
+        Nettoie les réservations dont le finalize n'a jamais été rappelé.
 
         Returns:
-            bool: True si le budget est dépassé, False sinon ou en cas d'erreur Redis.
+            int: nombre de réservations nettoyées sur ce passage.
         """
-        try:
-            used = int(await client.get(redis_keys.speedtest_bytes_day(day)) or 0)
-            return used > self._daily_budget
-        except Exception:
-            return False
+        if not self._enabled:
+            return 0
 
-    async def _release(self, client: redis.Redis) -> None:
+        client = redis.Redis(connection_pool=self._pool)
+        now = time.time()
+        cleaned = 0
+
+        try:
+            async for key in client.scan_iter(match=redis_keys.speedtest_reserved_match(), count=200):
+                try:
+                    data = await client.hgetall(key)
+                except Exception as e:
+                    self._logger.debug("GC speedtest : HGETALL échoué sur %s (%s)", key, e)
+                    continue
+                if not data:
+                    continue
+
+                try:
+                    ts = float(data.get("ts", "0"))
+                except (TypeError, ValueError):
+                    ts = 0.0
+
+                if now - ts < SPEEDTEST_RESERVATION_GC_AGE:
+                    continue
+
+                try:
+                    reserved_size = int(data.get("size", "0"))
+                    ip_hash = str(data.get("ip_hash", ""))
+                    day = str(data.get("day") or self._today())
+                    file_id = str(data.get("file_id", ""))
+                except (TypeError, ValueError):
+                    with contextlib.suppress(Exception):
+                        await client.delete(key)
+                    continue
+
+                with contextlib.suppress(Exception):
+                    if self._daily_budget and reserved_size:
+                        await client.decrby(redis_keys.speedtest_bytes_day(day), reserved_size)
+                    if self._per_ip_budget and reserved_size:
+                        await client.decrby(redis_keys.speedtest_bytes_ip(ip_hash, day), reserved_size)
+
+                await self._release_slot(client)
+
+                with contextlib.suppress(Exception):
+                    await client.delete(key)
+
+                duration_ms = max(0, int((now - ts) * 1000)) if ts > 0 else 0
+                await self._query_log.create(
+                    node_id="local",
+                    command_type="speedtest",
+                    target=file_id,
+                    family=None,
+                    source_ip_hash=ip_hash,
+                    status="orphaned",
+                    exit_code=None,
+                    duration_ms=duration_ms,
+                    bytes_served=0,
+                )
+                cleaned += 1
+        except Exception as e:
+            self._logger.warning("GC des réservations speedtest échoué : %s", e)
+
+        if cleaned:
+            self._logger.info("Speedtest GC : %d réservation(s) orpheline(s) nettoyée(s)", cleaned)
+
+        return cleaned
+
+    async def _release_slot(self, client: redis.Redis) -> None:
         """
         Décrémente le compteur de concurrence speedtest dans Redis (best-effort).
 

@@ -7,6 +7,7 @@ from quart import Blueprint, current_app, request
 from quart_rate_limiter import rate_limit
 
 from modules.endpoints.internal.speedtest.cli_download import cli_download_speedtest_func
+from modules.endpoints.internal.speedtest.cli_finalize import cli_finalize_func
 from modules.endpoints.internal.speedtest.cli_script import cli_script_func
 from modules.endpoints.internal.speedtest.cli_token import cli_token_func
 
@@ -51,3 +52,9 @@ async def speedtest_cli_script(file_id: str) -> ResponseReturnValue:
         os_name=request.args.get("os", ""),
         lang=request.args.get("lang", ""),
     )
+
+
+@api_v1_speedtest_bp.route("/speedtest/cli/finalize", methods=["POST"])
+async def speedtest_cli_finalize() -> ResponseReturnValue:
+    config_quart: dict = current_app.config_quart  # noqa
+    return await cli_finalize_func(config=config_quart)

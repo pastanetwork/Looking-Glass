@@ -35,7 +35,7 @@ class QueryLogRepository:
             target (str): cible affichable de la commande.
             family (Optional[int]): famille d'adresse IP (4 ou 6), ou None.
             source_ip_hash (str): empreinte hachée de l'IP source.
-            status (str): statut de la requête (ok, rejected, timeout, error, killed, running).
+            status (str): statut de la requête (ok, rejected, timeout, error, killed, running, orphaned).
             exit_code (Optional[int]): code de retour du processus, ou None.
             duration_ms (Optional[int]): durée d'exécution en millisecondes, ou None.
             bytes_served (Optional[int]): octets servis, renseigné pour le speedtest uniquement.

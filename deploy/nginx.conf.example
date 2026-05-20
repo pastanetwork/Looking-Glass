@@ -6,6 +6,14 @@
 # IMPORTANT : pour que l'IP cliente réelle soit prise en compte, l'IP de ce
 # reverse proxy doit figurer dans la variable d'environnement
 # TRUSTED_PROXY_HOSTS de l'application.
+#
+#--- Pré-requis Speedtest ---
+# Avant d'activer le speedtest, exécutez `deploy/scripts/create-speedtest-files.sh`
+# SUR CETTE VM NGINX. Le script crée les fichiers sparse (10mb.bin, 100mb.bin,
+# 1gb.bin, 10gb.bin) servis par la location interne ci-dessous. Ces fichiers
+# n'occupent quasiment aucun espace disque (sparse) et sont envoyés en zero-copy
+# via `sendfile`. Quart ne touche jamais à ces fichiers il valide la requête
+# puis pose un header X-Accel-Redirect.
 
 # Adaptez l'adresse à l'hôte qui fait tourner le conteneur (127.0.0.1 si nginx
 # et Docker sont sur la même machine, sinon l'IP LAN de la VM Docker).
@@ -40,6 +48,15 @@ server {
     # alors l'IP réelle du visiteur dans l'en-tête CF-Connecting-IP, que nginx
     # transmet automatiquement à l'amont.
 
+    # Endpoints non publics.
+    location = /api/v1/speedtest/cli/finalize {
+        return 404;
+    }
+    # /health : décommentez pour autoriser le monitoring externe.
+    location = /api/v1/health {
+        return 404;
+    }
+
     # Streaming SSE de /api/v1/run : le buffering DOIT être désactivé.
     location /api/v1/run {
         proxy_pass http://looking_glass;
@@ -54,9 +71,7 @@ server {
         chunked_transfer_encoding on;
     }
 
-    # Téléchargement du speedtest : buffering désactivé pour ne pas fausser
-    # la mesure ni saturer le disque de nginx sur les gros volumes.
-    location /api/v1/speedtest {
+    location ~ ^/api/v1/speedtest/(cli-token|cli/script/) {
         proxy_pass http://looking_glass;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
@@ -64,7 +79,61 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_read_timeout 300s;
+    }
+
+    location ~ ^/api/v1/speedtest/cli/[a-z0-9]+$ {
+        proxy_pass http://looking_glass;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location ~ "^/__internal__/speedtest/(?<st_token>[A-Za-z0-9_-]{20,64})/(?<st_rid>[A-Za-z0-9_-]{8,16})/(?<st_file>[a-z0-9]+\.bin)$" {
+        internal;
+        alias /var/www/lg-speedtest/$st_file;
+
+        sendfile on;
+        sendfile_max_chunk 2m;
+        tcp_nopush on;
+        tcp_nodelay on;
+        reset_timedout_connection on;
+
+        add_header Accept-Ranges "none" always;
+
+        access_log /var/log/nginx/lg-speedtest.log;
+
+        post_action @speedtest_finalize;
+    }
+
+    # IMPORTANT — variables nginx :
+    #   - utiliser $bytes_sent et PAS $body_bytes_sent : ce dernier est mis en
+    #     cache à 0 lors de l'évaluation précoce des proxy_set_header (bug nginx
+    #     documenté). $bytes_sent inclut ~150 octets de headers HTTP, négligeable
+    #     face à 10 Mo–10 Go transmis.
+    #   - Aucun X-Real-IP / X-Forwarded-For ici : on veut que Quart voie l'IP
+    #     réelle de nginx (vérifiée contre trusted_proxy_hosts).
+    #
+    # REMPLACEZ "REMPLACEZ_PAR_SPEEDTEST_FINALIZE_SECRET" par la valeur de
+    # SPEEDTEST_FINALIZE_SECRET de votre fichier .env applicatif.
+    location @speedtest_finalize {
+        internal;
+        rewrite ^ /api/v1/speedtest/cli/finalize break;
+        proxy_pass http://looking_glass;
+        proxy_method POST;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Speedtest-Token $st_token;
+        proxy_set_header X-Speedtest-Rid $st_rid;
+        proxy_set_header X-Speedtest-File $st_file;
+        proxy_set_header X-Speedtest-Sent $bytes_sent;
+        proxy_set_header X-Speedtest-Status $status;
+        proxy_set_header X-Speedtest-Auth "REMPLACEZ_PAR_SPEEDTEST_FINALIZE_SECRET";
+        proxy_set_header Content-Length 0;
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 5s;
+        proxy_read_timeout 10s;
     }
 
     # Proxy vers Hypercorn (Quart).

@@ -107,15 +107,30 @@ Compose (ou un gestionnaire de stacks comme Dockge), avec volumes nommés et cap
 déjà configurés.
 
 L'application écoute sur le port 8080. Le conteneur embarque son propre Redis, aucun
-service externe n'est requis. Un endpoint `/api/v1/health` est exposé pour la
-surveillance (et utilisé par le `HEALTHCHECK` Docker).
+service externe n'est requis. Un endpoint `/api/v1/health` est exposé pour le
+`HEALTHCHECK` Docker (qui interroge l'application en interne au conteneur). Il est
+**bloqué publiquement par nginx** dans l'exemple fourni décommentez la ligne
+correspondante si vous avez besoin de monitoring externe.
 
 ### Reverse proxy
 
 Mettez votre reverse proxy devant le conteneur. Un exemple de vhost nginx est fourni
-dans `deploy/nginx.conf.example`. Le **buffering doit être désactivé** sur les routes
-`/api/v1/run` (streaming SSE) et `/api/v1/speedtest` (mesure de débit fidèle), et le
-reverse proxy doit transmettre l'en-tête `X-Real-IP` (voir `TRUSTED_PROXY_HOSTS`).
+dans `deploy/nginx.conf.example`. Le **buffering doit être désactivé** sur la route
+`/api/v1/run` (streaming SSE), et le reverse proxy doit transmettre l'en-tête
+`X-Real-IP` (voir `TRUSTED_PROXY_HOSTS`).
+
+Pour le speedtest, l'application délègue le téléchargement à nginx via
+`X-Accel-Redirect` : Quart valide la requête (Turnstile, token, budget, concurrence)
+puis nginx sert un fichier sparse en zero-copy (`sendfile`). Une `post_action` rappelle
+ensuite l'application pour ajuster les compteurs et journaliser. Avant d'activer la
+fonctionnalité :
+
+1. Exécutez `deploy/scripts/create-speedtest-files.sh` **sur la VM nginx** (ou la même
+   machine si nginx est local). Le script crée des fichiers sparse (10mb.bin …
+   10gb.bin) qui n'occupent quasiment aucun espace disque.
+2. Recopiez le bloc « SPEEDTEST » de `deploy/nginx.conf.example` dans votre vhost.
+3. Posez la même valeur de `SPEEDTEST_FINALIZE_SECRET` dans `.env` côté application
+   et dans la directive `proxy_set_header X-Speedtest-Auth` côté nginx.
 
 [turnstile]: https://dash.cloudflare.com/?to=/:account/turnstile
 
@@ -209,8 +224,9 @@ transit au 95e centile ni votre volume mensuel.
 | `SPEEDTEST_ENABLED` | `False` | Active la fonctionnalité de test de débit. |
 | `SPEEDTEST_DAILY_BYTE_BUDGET` | `0` (illimité) | Volume total servi par jour, tous clients confondus. Une fois atteint, le speedtest est coupé jusqu'au lendemain — c'est LE garde-fou. `.env.example` propose `805306368000` (750 Gio/jour). |
 | `SPEEDTEST_PER_IP_BYTE_BUDGET` | `0` (illimité) | Volume servi par IP et par jour. `.env.example` propose `32212254720` (30 Gio/jour). |
-| `SPEEDTEST_MAX_KBPS` | `0` (non bridé) | Débit maximum par connexion, en kilo-octets/s. `0` laisse le client voir le vrai débit du lien. |
 | `SPEEDTEST_CONCURRENCY` | `16` | Connexions speedtest simultanées, tous clients confondus. Un test en ligne de commande ouvre 4 connexions en parallèle : prévoir un multiple de 4. |
+| `SPEEDTEST_FINALIZE_SECRET` | *(requis si activé en prod)* | Secret partagé entre nginx (`proxy_set_header X-Speedtest-Auth` du bloc `@speedtest_finalize`) et l'application, vérifié en temps constant. Génération : `openssl rand -hex 32`. En mode `DEV=True`, l'application tolère un secret vide. |
+| `SPEEDTEST_XACCEL_PREFIX` | `/__internal__/speedtest` | Préfixe d'URI interne utilisé dans l'en-tête `X-Accel-Redirect`. À aligner avec la location interne dans `nginx.conf`. À ne changer que si le préfixe entre en conflit avec une autre route. |
 
 ##### Test de débit depuis un terminal
 
@@ -372,6 +388,11 @@ workers. Chaque commande est exécutée dans un sous-processus dont la sortie es
 en SSE. Redis, interne au conteneur, porte le rate-limiting et les plafonds de
 concurrence. SQLite conserve le journal des requêtes. L'interface utilise Tailwind CSS
 et Alpine.js.
+
+Le speedtest, qui sert de gros volumes à plein débit, est délégué à nginx via
+`X-Accel-Redirect` : l'application valide la requête (token, budget, concurrence) puis
+nginx envoie un fichier sparse en `sendfile`, sans repasser par Python. Une
+`post_action` rappelle ensuite l'application pour ajuster le budget et journaliser.
 
 [quart]: https://quart.palletsprojects.com/
 

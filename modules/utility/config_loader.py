@@ -183,8 +183,9 @@ def load_config() -> dict[str, Any]:
     config["speedtest"]["enabled"] = _env_bool("SPEEDTEST_ENABLED", config["speedtest"]["enabled"])
     config["speedtest"]["daily_byte_budget"] = _env_int("SPEEDTEST_DAILY_BYTE_BUDGET", 0)
     config["speedtest"]["per_ip_byte_budget"] = _env_int("SPEEDTEST_PER_IP_BYTE_BUDGET", 0)
-    config["speedtest"]["max_kbps"] = _env_int("SPEEDTEST_MAX_KBPS", 0)
     config["speedtest"]["concurrency"] = _env_int("SPEEDTEST_CONCURRENCY", SPEEDTEST_CONCURRENCY_CAP)
+    config["speedtest"]["finalize_secret"] = os.getenv("SPEEDTEST_FINALIZE_SECRET", "").strip()
+    config["speedtest"]["xaccel_prefix"] = os.getenv("SPEEDTEST_XACCEL_PREFIX", "/__internal__/speedtest").strip().rstrip("/")
 
     _clamp_limits(config)
     _validate(config)
@@ -238,7 +239,7 @@ def _resolve_ip_hash_salt(db_path: str) -> str:
 
 def _validate(config: dict) -> None:
     """
-    Valide la configuration Turnstile.
+    Valide la configuration Turnstile et le secret de finalize speedtest.
 
     Parameters:
         config (dict): configuration à vérifier.
@@ -249,4 +250,13 @@ def _validate(config: dict) -> None:
         raise RuntimeError(
             "TURNSTILE_SITE_KEY et TURNSTILE_SECRET_KEY sont requis "
             "(sauf si DEV=True et TURNSTILE_DEV_BYPASS=True)."
+        )
+
+    speedtest = config["speedtest"]
+    if not config["dev"] and speedtest["enabled"] and not speedtest["finalize_secret"]:
+        raise RuntimeError(
+            "SPEEDTEST_FINALIZE_SECRET est obligatoire quand SPEEDTEST_ENABLED=True "
+            "en production (DEV=False). Génération : openssl rand -hex 32. Le secret "
+            "doit aussi être posé dans la directive proxy_set_header X-Speedtest-Auth "
+            "de la location @speedtest_finalize côté nginx."
         )
