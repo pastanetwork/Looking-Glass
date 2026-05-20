@@ -634,11 +634,24 @@ function lookingGlassPage(options) {
                 return;
             }
             if (!responses.every(function (r) { return r.ok && r.body; })) {
+                // Récupère le détail d'erreur depuis la première réponse en échec
+                // avant d'annuler le reste (sinon on perd le body).
+                var failed = null;
+                for (var i = 0; i < responses.length; i++) {
+                    if (!responses[i].ok) { failed = responses[i]; break; }
+                }
+                var detail = "err_generic";
+                if (failed) {
+                    try {
+                        var data = await failed.json();
+                        if (data && data.detail) { detail = data.detail; }
+                    } catch (e) { /* parse fail : on garde err_generic */ }
+                }
                 responses.forEach(function (r) {
-                    if (r && r.body) { try { r.body.cancel(); } catch (e) { /* ignore */ } }
+                    if (r && r.body && r.ok) { try { r.body.cancel(); } catch (e) { /* ignore */ } }
                 });
                 this._abortStreams();
-                this._stFail("err_generic");
+                this._stFail(detail);
                 return;
             }
 

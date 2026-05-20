@@ -52,6 +52,19 @@ def speedtest_cli_token(token: str) -> str:
     return f"{_PREFIX}:speed:cli:{token}"
 
 
+def speedtest_cli_token_uses(token: str) -> str:
+    """
+    Retourne la clé Redis comptant le nombre d'appels begin() pour un token.
+
+    Parameters:
+        token (str): token opaque délivré au client.
+
+    Returns:
+        str: clé Redis du compteur d'utilisations.
+    """
+    return f"{_PREFIX}:speed:cli:{token}:uses"
+
+
 def speedtest_bytes_ip(ip_hash: str, day: str) -> str:
     """
     Retourne la clé Redis du budget d'octets speedtest pour une IP sur une journée.

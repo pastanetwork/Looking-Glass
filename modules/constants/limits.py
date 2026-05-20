@@ -24,6 +24,7 @@ SPEEDTEST_BUDGET_TTL = 93600            # ~26 h, expiration des compteurs journa
 SPEEDTEST_SLOT_TTL = 300                # durée de vie d'un slot de concurrence speedtest
 SPEEDTEST_MAX_FILE_BYTES = 10737418240  # plafond par défaut de taille de fichier (10 Gio)
 SPEEDTEST_CLI_TOKEN_TTL = 300           # durée de validité d'un token de test de débit en ligne de commande
+SPEEDTEST_TOKEN_MAX_USES = 4            # un token = 4 begin() (les 4 streams d'un test), au-delà refus
 SPEEDTEST_RESERVATION_TTL = 1500        # durée de vie d'une réservation Redis (token TTL + marge GC)
 SPEEDTEST_RESERVATION_GC_AGE = 600      # âge (s) au-delà duquel une réservation orpheline est nettoyée
 SPEEDTEST_GC_INTERVAL = 300             # périodicité de la tâche GC des réservations orphelines

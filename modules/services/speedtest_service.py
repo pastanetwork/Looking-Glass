@@ -18,6 +18,7 @@ from modules.constants.limits import (
     SPEEDTEST_RESERVATION_GC_AGE,
     SPEEDTEST_RESERVATION_TTL,
     SPEEDTEST_SLOT_TTL,
+    SPEEDTEST_TOKEN_MAX_USES,
 )
 from modules.utility.hashing import hash_ip
 
@@ -222,6 +223,16 @@ class SpeedtestService:
         day = self._today()
         day_key = redis_keys.speedtest_bytes_day(day)
         ip_key = redis_keys.speedtest_bytes_ip(ip_hash, day)
+
+        uses_key = redis_keys.speedtest_cli_token_uses(token)
+        try:
+            uses = await client.incr(uses_key)
+            await client.expire(uses_key, SPEEDTEST_CLI_TOKEN_TTL)
+            if uses > SPEEDTEST_TOKEN_MAX_USES:
+                return SpeedtestStart(ok=False, http=410, error="err_token_exhausted")
+        except Exception as e:
+            self._logger.warning("Compteur d'utilisations speedtest échoué : %s", e)
+            return SpeedtestStart(ok=False, http=503, error="err_busy")
 
         try:
             count = await client.incr(redis_keys.speedtest_concurrency())

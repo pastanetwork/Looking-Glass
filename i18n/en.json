@@ -107,7 +107,7 @@
   "speedtest_elapsed": "Duration",
   "speedtest_cli": "Test from a terminal",
   "speedtest_cli_btn": "Generate command",
-  "speedtest_cli_hint": "Paste this command into a terminal. Link valid for 5 minutes.",
+  "speedtest_cli_hint": "Paste this command into a terminal. Single-use link, valid for 5 minutes.",
   "speedtest_cli_view": "View the script that runs",
   "speedtest_cli_expired": "Link expired. Generate a new command from the page.",
   "speedtest_cli_live": "Speed",
@@ -128,6 +128,7 @@
   "err_ratelimit": "Too many requests. Please wait a moment.",
   "err_busy": "The service is momentarily saturated. Try again shortly.",
   "err_network": "Network error. Check your connection.",
+  "err_token_exhausted": "This test token has already been used. Start the test again to mint a fresh one.",
   "err_generic": "Something went wrong.",
   "err_myip": "Could not retrieve your IP address.",
 

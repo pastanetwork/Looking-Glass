@@ -107,7 +107,7 @@
   "speedtest_elapsed": "Durée",
   "speedtest_cli": "Tester depuis un terminal",
   "speedtest_cli_btn": "Générer la commande",
-  "speedtest_cli_hint": "Collez cette commande dans un terminal. Lien valable 5 minutes.",
+  "speedtest_cli_hint": "Collez cette commande dans un terminal. Lien à usage unique, valable 5 minutes.",
   "speedtest_cli_view": "Voir le script exécuté",
   "speedtest_cli_expired": "Lien expiré. Régénérez la commande depuis la page.",
   "speedtest_cli_live": "Débit",
@@ -128,6 +128,7 @@
   "err_ratelimit": "Trop de requêtes. Patientez un instant.",
   "err_busy": "Le service est momentanément saturé. Réessayez dans quelques instants.",
   "err_network": "Erreur réseau. Vérifiez votre connexion.",
+  "err_token_exhausted": "Ce jeton de test a déjà été utilisé. Relancez le test pour en générer un nouveau.",
   "err_generic": "Une erreur est survenue.",
   "err_myip": "Impossible de récupérer votre adresse IP.",
 
