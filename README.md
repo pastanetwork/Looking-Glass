@@ -413,9 +413,10 @@ protections sont appliquées dans l'application elle-même.
   les délégations NS pointant vers du réseau interne sont en plus coupées par les
   règles iptables posées dans le conteneur (toute sortie vers RFC1918, link-local et
   loopback est rejetée — fermeture du vecteur SSRF DNS)
-- l'entrypoint démarre brièvement en root avec `NET_ADMIN` pour poser le pare-feu,
-  puis dégrade en utilisateur non privilégié (`lguser`) en droppant `NET_ADMIN` du
-  bounding set ; le conteneur tourne ensuite avec la seule capability `NET_RAW`
+- l'entrypoint démarre brièvement en root avec `NET_ADMIN` (pour iptables) et
+  `SETUID`/`SETGID` (pour la bascule d'utilisateur), pose le pare-feu, puis dégrade
+  en `lguser` via `setpriv` en droppant ces trois capabilities du bounding set ; le
+  conteneur tourne ensuite avec la seule capability `NET_RAW` (nécessaire à `ping`)
 - les IP sources sont hachées en SHA-256 avant d'être journalisées, jamais en clair
 
 ## Licence

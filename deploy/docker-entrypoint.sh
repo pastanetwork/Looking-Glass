@@ -41,7 +41,8 @@ if [ "$(id -u)" = "0" ]; then
 
     exec setpriv \
         --reuid=lguser --regid=lguser --init-groups \
-        --bounding-set=-cap_net_admin --inh-caps=-all \
+        --bounding-set=-cap_net_admin,-cap_setuid,-cap_setgid \
+        --inh-caps=-all \
         "$0" "$@"
 fi
 

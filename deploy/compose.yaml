@@ -12,14 +12,17 @@ services:
     hostname: looking-glass
     restart: unless-stopped
 
-    # ping / traceroute / mtr ont besoin des sockets bruts ; NET_ADMIN sert uniquement
-    # au démarrage pour poser les règles iptables (bloquage RFC1918 en sortie), puis
-    # est droppé du bounding set par l'entrypoint avant de basculer sur lguser.
+    # ping / traceroute / mtr ont besoin des sockets bruts (NET_RAW, permanent).
+    # NET_ADMIN sert à poser les règles iptables au boot ; SETUID/SETGID servent à
+    # descendre de root vers lguser. Ces trois caps sont retirées du bounding set
+    # par l'entrypoint juste avant le passage sous lguser : seul NET_RAW reste.
     cap_drop:
       - ALL
     cap_add:
       - NET_RAW
       - NET_ADMIN
+      - SETUID
+      - SETGID
     security_opt:
       - no-new-privileges:true
 
