@@ -82,7 +82,10 @@ docker build -f deploy/Dockerfile -t looking-glass:local .
 
 docker run -d --name looking-glass \
   -p 8080:8080 \
-  --cap-drop ALL --cap-add NET_RAW \
+  --cap-drop ALL \
+  --cap-add NET_RAW --cap-add NET_ADMIN \
+  --cap-add SETUID --cap-add SETGID --cap-add SETPCAP \
+  --security-opt no-new-privileges:true \
   --env-file .env \
   -e DEV=False \
   -v "$(pwd)/data:/app/data" \
@@ -92,8 +95,11 @@ docker run -d --name looking-glass \
 
 Points importants :
 
-- `--cap-drop ALL --cap-add NET_RAW` : le conteneur tourne sans privilège, avec la seule
-  capability nécessaire aux sockets ICMP. Le processus applicatif n'est pas root.
+- Les capabilities `NET_ADMIN`, `SETUID`, `SETGID` et `SETPCAP` ne servent qu'au démarrage :
+  l'entrypoint pose le pare-feu iptables (RFC1918 bloqué en sortie), puis bascule en
+  `lguser` via `setpriv` en droppant ces quatre caps du bounding set. Le processus
+  applicatif tourne ensuite avec la seule capability `NET_RAW` (nécessaire à `ping`).
+  `no-new-privileges:true` empêche tout binaire setuid de remonter les droits.
 - `-v ./data:/app/data` : **persiste** la base SQLite (`looking_glass.db`) et le sel
   `.ip_hash_salt`. Sans ce volume, le journal et le sel repartent de zéro à chaque
   redémarrage.

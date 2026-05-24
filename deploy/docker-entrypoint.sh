@@ -3,16 +3,27 @@ set -e
 
 apply_firewall() {
     local v4_nets=(
-        "10.0.0.0/8"
-        "172.16.0.0/12"
-        "192.168.0.0/16"
-        "169.254.0.0/16"
-        "127.0.0.0/8"
+        "10.0.0.0/8"           # RFC 1918 privé
+        "172.16.0.0/12"        # RFC 1918 privé
+        "192.168.0.0/16"       # RFC 1918 privé
+        "169.254.0.0/16"       # link-local
+        "127.0.0.0/8"          # loopback
+        "0.0.0.0/8"            # « cet hôte » (RFC 1122)
+        "100.64.0.0/10"        # CGN (RFC 6598)
+        "192.0.0.0/24"         # affectations protocole IETF
+        "192.0.2.0/24"         # documentation TEST-NET-1
+        "198.18.0.0/15"        # benchmarking
+        "198.51.100.0/24"      # documentation TEST-NET-2
+        "203.0.113.0/24"       # documentation TEST-NET-3
+        "240.0.0.0/4"          # réservé (ancienne classe E)
     )
     local v6_nets=(
-        "fc00::/7"
-        "fe80::/10"
-        "::1/128"
+        "fc00::/7"             # ULA (RFC 4193)
+        "fe80::/10"            # link-local
+        "::1/128"              # loopback
+        "::/128"               # non spécifié
+        "2001:db8::/32"        # documentation
+        "100::/64"             # discard-only (RFC 6666)
     )
 
     iptables -I OUTPUT 1 -o lo -j ACCEPT

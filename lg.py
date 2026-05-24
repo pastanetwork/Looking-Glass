@@ -96,7 +96,13 @@ def run(
 ) -> None:
     """Lance l'image Docker construite avec les capabilities réseau requises."""
     argv = ["docker", "run", "--rm", "-p", f"{port}:8080",
-            "--cap-drop", "ALL", "--cap-add", "NET_RAW"]
+            "--cap-drop", "ALL",
+            "--cap-add", "NET_RAW",
+            "--cap-add", "NET_ADMIN",
+            "--cap-add", "SETUID",
+            "--cap-add", "SETGID",
+            "--cap-add", "SETPCAP",
+            "--security-opt", "no-new-privileges:true"]
     if (ROOT / env_file).exists():
         argv += ["--env-file", env_file]
     else:
