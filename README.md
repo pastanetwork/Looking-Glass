@@ -409,6 +409,9 @@ protections sont appliquées dans l'application elle-même.
   sortie bornée
 - les sauts internes (IP privées et réservées) sont masqués dans la sortie de
   traceroute, MTR et DNS : la topologie interne n'est pas exposée
+- le mode `dig +trace` exige que la cible résolve vers une IP publique avant exécution ;
+  pour bloquer en plus les délégations NS pointant vers du réseau interne (SSRF DNS),
+  isole le conteneur des plages RFC1918 au niveau pare-feu / iptables côté hôte
 - le conteneur tourne sans privilège root, avec la seule capability `NET_RAW`
 - les IP sources sont hachées en SHA-256 avant d'être journalisées, jamais en clair
 

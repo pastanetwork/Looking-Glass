@@ -7,7 +7,7 @@ from pydantic import ValidationError
 
 from modules.constants.validation import MAX_TARGET_LENGTH
 from modules.executors.commands import build_command_spec
-from modules.models.enums import CommandStatus
+from modules.models.enums import CommandStatus, CommandType, DnsMode
 from modules.models.schemas import CommandRequest
 from modules.utility.hashing import hash_ip
 from modules.utility.ip_validation import validate_dns_target, validate_target
@@ -106,7 +106,12 @@ class CommandService:
             return PrepareResult(ok=False, http=500, error="err_generic")
 
         if spec.target_kind == "hostname":
-            validated = validate_dns_target(target, self._targets_cfg)
+            require_public_ip = (
+                req.tool == CommandType.DNS and req.dns_mode == DnsMode.TRACE
+            )
+            validated = await validate_dns_target(
+                target, self._targets_cfg, require_public_ip=require_public_ip,
+            )
         else:
             validated = await validate_target(target, req.family, self._targets_cfg)
 

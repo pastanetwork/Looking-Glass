@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shlex
 from typing import TYPE_CHECKING
 
 from quart import Response, jsonify, request
@@ -44,7 +45,10 @@ async def cli_script_func(config: dict, file_id: str, token: str, os_name: str, 
 
     if not await speedtest_service.cli_token_valid(token):
         message = t("speedtest_cli_expired")
-        body = f'echo "{message}"' if os_name == "linux" else f'Write-Host "{message}"'
+        if os_name == "linux":
+            body = f"echo {shlex.quote(message)}"
+        else:
+            body = "Write-Host '" + message.replace("'", "''") + "'"
         return _text(body)
 
     base = (config.get("public_url") or request.host_url).rstrip("/")

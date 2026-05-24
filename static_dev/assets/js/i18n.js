@@ -38,7 +38,8 @@ document.addEventListener("alpine:init", function () {
                 return;
             }
             this.lang = code;
-            document.cookie = "lg_lang=" + code + "; path=/; max-age=31536000; samesite=lax";
+            var secure = (location.protocol === "https:") ? "; secure" : "";
+            document.cookie = "lg_lang=" + code + "; path=/; max-age=31536000; samesite=lax" + secure;
             document.documentElement.lang = code;
             applyStaticTranslations(code);
         },

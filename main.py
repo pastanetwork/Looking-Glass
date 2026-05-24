@@ -65,6 +65,11 @@ app.config_quart = config_quart
 rate_limiter = RateLimiter(app, store=build_redis_store(config_quart))
 
 if not config_quart["dev"]:
+    if not config_quart["allowed_hosts"]:
+        logger.warning(
+            "ALLOWED_HOSTS est vide en production : l'en-tête Host n'est pas vérifié. "
+            "Renseigne la variable d'environnement pour bloquer le host header poisoning."
+        )
     app.asgi_app = TrustedHostMiddleware(app.asgi_app, allowed_hosts=config_quart["allowed_hosts"])
     app.asgi_app = ProxyHeadersMiddleware(app.asgi_app, config_quart)
 

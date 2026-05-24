@@ -191,13 +191,21 @@ async def _resolve(hostname: str, family: IpFamily) -> List[_IPAddress]:
     return results
 
 
-def validate_dns_target(raw: str, targets_cfg: dict) -> ValidationResult:
+async def validate_dns_target(
+    raw: str,
+    targets_cfg: dict,
+    *,
+    require_public_ip: bool = False,
+) -> ValidationResult:
     """
-    Valide une cible d'interrogation DNS sans résolution préalable.
+    Valide une cible d'interrogation DNS, avec résolution optionnelle.
 
     Parameters:
         raw (str): saisie brute de l'utilisateur (nom d'hôte ou IP).
         targets_cfg (dict): configuration des cibles (allow_list, block_list, etc.).
+        require_public_ip (bool): si True, résout le nom d'hôte et exige qu'au moins
+            une des IP résolues passe les règles publiques (utile pour `dig +trace`,
+            qui peut sinon servir de SSRF DNS vers des serveurs autoritaires internes).
 
     Returns:
         ValidationResult: résultat avec la cible littérale à interroger, ou une clé d'erreur.
@@ -219,6 +227,13 @@ def validate_dns_target(raw: str, targets_cfg: dict) -> ValidationResult:
 
     if not HOSTNAME_REGEX.match(raw):
         return ValidationResult(ok=False, display=raw, error="err_target")
+
+    if require_public_ip:
+        resolved = await _resolve(raw, IpFamily.AUTO)
+        if not resolved:
+            return ValidationResult(ok=False, display=raw, error="err_target")
+        if not any(check_ip(addr, targets_cfg) is None for addr in resolved):
+            return ValidationResult(ok=False, display=raw, error="err_target")
 
     return ValidationResult(ok=True, ip=raw, family=0, display=raw)
 

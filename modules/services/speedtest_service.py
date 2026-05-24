@@ -27,6 +27,16 @@ if TYPE_CHECKING:
 
     from modules.repositories.query_log_repo import QueryLogRepository
 
+_TOKEN_USE_LUA = """
+local n = redis.call('INCR', KEYS[1])
+redis.call('EXPIRE', KEYS[1], ARGV[2])
+if n > tonumber(ARGV[1]) then
+  redis.call('DECR', KEYS[1])
+  return -1
+end
+return n
+"""  # noqa: S105
+
 
 @dataclass
 class SpeedtestStart:
@@ -226,9 +236,14 @@ class SpeedtestService:
 
         uses_key = redis_keys.speedtest_cli_token_uses(token)
         try:
-            uses = await client.incr(uses_key)
-            await client.expire(uses_key, SPEEDTEST_CLI_TOKEN_TTL)
-            if uses > SPEEDTEST_TOKEN_MAX_USES:
+            uses = await client.eval(
+                _TOKEN_USE_LUA,
+                1,
+                uses_key,
+                SPEEDTEST_TOKEN_MAX_USES,
+                SPEEDTEST_CLI_TOKEN_TTL,
+            )
+            if uses == -1:
                 return SpeedtestStart(ok=False, http=410, error="err_token_exhausted")
         except Exception as e:
             self._logger.warning("Compteur d'utilisations speedtest échoué : %s", e)

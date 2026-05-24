@@ -6,7 +6,7 @@ import pytest
 
 from modules.constants.validation import HOSTNAME_REGEX
 from modules.models.enums import IpFamily
-from modules.utility.ip_validation import check_ip, validate_target
+from modules.utility.ip_validation import check_ip, validate_dns_target, validate_target
 
 DEFAULT_CFG = {
     "block_private": True,
@@ -111,3 +111,32 @@ class TestValidateTarget:
     async def test_empty_and_too_long_rejected(self):
         assert not (await validate_target("", IpFamily.AUTO, DEFAULT_CFG)).ok
         assert not (await validate_target("a" * 300, IpFamily.AUTO, DEFAULT_CFG)).ok
+
+
+# ===================== validate_dns_target =====================
+
+class TestValidateDnsTarget:
+    async def test_hostname_passes_without_resolution(self):
+        result = await validate_dns_target("example.com", DEFAULT_CFG)
+        assert result.ok and result.ip == "example.com" and result.family == 0
+
+    async def test_literal_public_ip_passes(self):
+        result = await validate_dns_target("8.8.8.8", DEFAULT_CFG)
+        assert result.ok and result.ip == "8.8.8.8" and result.family == 4
+
+    async def test_literal_private_ip_rejected(self):
+        result = await validate_dns_target("192.168.1.1", DEFAULT_CFG)
+        assert not result.ok and result.error == "err_target"
+
+    async def test_injection_payload_rejected(self):
+        result = await validate_dns_target("example.com; id", DEFAULT_CFG)
+        assert not result.ok
+
+    async def test_trace_resolves_and_rejects_loopback(self):
+        # En mode trace, localhost doit être refusé même comme nom d'hôte (SSRF DNS).
+        result = await validate_dns_target("localhost", DEFAULT_CFG, require_public_ip=True)
+        assert not result.ok and result.error == "err_target"
+
+    async def test_trace_accepts_public_hostname(self):
+        result = await validate_dns_target("example.com", DEFAULT_CFG, require_public_ip=True)
+        assert result.ok and result.ip == "example.com"
