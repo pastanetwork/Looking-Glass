@@ -85,6 +85,7 @@ docker run -d --name looking-glass \
   --cap-drop ALL \
   --cap-add NET_RAW --cap-add NET_ADMIN \
   --cap-add SETUID --cap-add SETGID --cap-add SETPCAP \
+  --cap-add KILL \
   --security-opt no-new-privileges:true \
   --env-file .env \
   -e DEV=False \
@@ -99,7 +100,9 @@ Points importants :
   l'entrypoint pose le pare-feu iptables (RFC1918 bloqué en sortie), puis bascule en
   `lguser` via `setpriv` en droppant ces quatre caps du bounding set. Le processus
   applicatif tourne ensuite avec la seule capability `NET_RAW` (nécessaire à `ping`).
-  `no-new-privileges:true` empêche tout binaire setuid de remonter les droits.
+  `KILL` permet à tini (PID 1, root) de forwarder SIGTERM au processus enfant qui
+  tourne en `lguser` lors de l'arrêt du conteneur. `no-new-privileges:true` empêche
+  tout binaire setuid de remonter les droits.
 - `-v ./data:/app/data` : **persiste** la base SQLite (`looking_glass.db`) et le sel
   `.ip_hash_salt`. Sans ce volume, le journal et le sel repartent de zéro à chaque
   redémarrage.

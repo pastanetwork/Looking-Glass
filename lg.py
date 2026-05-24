@@ -102,6 +102,7 @@ def run(
             "--cap-add", "SETUID",
             "--cap-add", "SETGID",
             "--cap-add", "SETPCAP",
+            "--cap-add", "KILL",
             "--security-opt", "no-new-privileges:true"]
     if (ROOT / env_file).exists():
         argv += ["--env-file", env_file]

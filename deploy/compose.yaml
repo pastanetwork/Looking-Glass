@@ -25,6 +25,7 @@ services:
       - SETUID
       - SETGID
       - SETPCAP
+      - KILL
     security_opt:
       - no-new-privileges:true
 
