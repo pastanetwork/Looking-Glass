@@ -13,9 +13,10 @@ services:
     restart: unless-stopped
 
     # ping / traceroute / mtr ont besoin des sockets bruts (NET_RAW, permanent).
-    # NET_ADMIN sert à poser les règles iptables au boot ; SETUID/SETGID servent à
-    # descendre de root vers lguser. Ces trois caps sont retirées du bounding set
-    # par l'entrypoint juste avant le passage sous lguser : seul NET_RAW reste.
+    # NET_ADMIN sert à poser les règles iptables au boot ; SETUID/SETGID/SETPCAP
+    # servent à descendre de root vers lguser et à modifier le bounding set. Ces
+    # quatre caps sont retirées du bounding set par l'entrypoint juste avant le
+    # passage sous lguser : seul NET_RAW reste.
     cap_drop:
       - ALL
     cap_add:
@@ -23,6 +24,7 @@ services:
       - NET_ADMIN
       - SETUID
       - SETGID
+      - SETPCAP
     security_opt:
       - no-new-privileges:true
 
