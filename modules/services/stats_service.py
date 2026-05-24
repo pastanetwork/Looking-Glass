@@ -34,6 +34,11 @@ class StatsService:
         recent = await self._query_log.recent(limit=20)
         for entry in recent:
             raw_target = entry.get("target") or ""
+            if entry.get("command_type") == "speedtest":
+                entry["target_kind"] = None
+                entry["suspect"] = False
+                entry["target"] = raw_target
+                continue
             kind = classify_target(raw_target)
             entry["target_kind"] = kind
             entry["suspect"] = kind is None and bool(raw_target)
