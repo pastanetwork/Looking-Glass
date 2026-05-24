@@ -16,12 +16,14 @@ apply_firewall() {
     )
 
     iptables -I OUTPUT 1 -o lo -j ACCEPT
+    iptables -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
     for net in "${v4_nets[@]}"; do
         iptables -A OUTPUT -d "$net" -j REJECT
     done
 
     if command -v ip6tables >/dev/null 2>&1; then
         ip6tables -I OUTPUT 1 -o lo -j ACCEPT 2>/dev/null || true
+        ip6tables -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || true
         for net in "${v6_nets[@]}"; do
             ip6tables -A OUTPUT -d "$net" -j REJECT 2>/dev/null || true
         done
