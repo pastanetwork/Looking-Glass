@@ -19,6 +19,7 @@ FROM python:3.12-slim AS runtime
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         redis-server iputils-ping traceroute mtr-tiny bind9-dnsutils \
+        iptables util-linux \
         ca-certificates git curl tini \
     && rm -rf /var/lib/apt/lists/*
 
@@ -46,7 +47,8 @@ ENV LG_PORT=8080 \
     PYTHONUNBUFFERED=1
 
 EXPOSE 8080
-USER lguser
+# L'entrypoint démarre en root pour poser le pare-feu iptables (NET_ADMIN), puis
+# dégrade en lguser via gosu en droppant NET_ADMIN du bounding set.
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD curl -fsS "http://127.0.0.1:${LG_PORT}/api/v1/health" || exit 1

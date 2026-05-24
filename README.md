@@ -410,9 +410,12 @@ protections sont appliquées dans l'application elle-même.
 - les sauts internes (IP privées et réservées) sont masqués dans la sortie de
   traceroute, MTR et DNS : la topologie interne n'est pas exposée
 - le mode `dig +trace` exige que la cible résolve vers une IP publique avant exécution ;
-  pour bloquer en plus les délégations NS pointant vers du réseau interne (SSRF DNS),
-  isole le conteneur des plages RFC1918 au niveau pare-feu / iptables côté hôte
-- le conteneur tourne sans privilège root, avec la seule capability `NET_RAW`
+  les délégations NS pointant vers du réseau interne sont en plus coupées par les
+  règles iptables posées dans le conteneur (toute sortie vers RFC1918, link-local et
+  loopback est rejetée — fermeture du vecteur SSRF DNS)
+- l'entrypoint démarre brièvement en root avec `NET_ADMIN` pour poser le pare-feu,
+  puis dégrade en utilisateur non privilégié (`lguser`) en droppant `NET_ADMIN` du
+  bounding set ; le conteneur tourne ensuite avec la seule capability `NET_RAW`
 - les IP sources sont hachées en SHA-256 avant d'être journalisées, jamais en clair
 
 ## Licence
