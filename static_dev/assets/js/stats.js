@@ -70,6 +70,10 @@ function statsPage() {
             return window.t("status_" + k);
         },
 
+        targetKindLabel: function (k) {
+            return window.t("stats_target_" + k);
+        },
+
         statusDot: function (k) {
             return LG_STATUS_DOTS[k] || "bg-gray-400";
         },

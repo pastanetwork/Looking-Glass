@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from ipaddress import ip_address
+from typing import Optional
 
 _MASK = "•••"
 _IPV4_RE = re.compile(r"(?:\d{1,3}\.){3}\d{1,3}")
@@ -35,6 +36,26 @@ def mask_target(value: str) -> str:
     if ip.version == 4:
         return ".".join(value.strip().split(".")[:3]) + "." + _MASK
     return ":".join(ip.exploded.split(":")[:4]) + ":" + _MASK
+
+
+def classify_target(value: str) -> Optional[str]:
+    """
+    Classe une cible en famille générique pour un affichage public anonymisé.
+
+    Parameters:
+        value (str): cible brute issue du journal des requêtes.
+
+    Returns:
+        Optional[str]: "ipv4", "ipv6", "domain" ou None si la cible est vide ou suspecte.
+    """
+    stripped = value.strip()
+    if not stripped or _SAFE_TARGET_RE.match(stripped) is None:
+        return None
+    try:
+        ip = ip_address(stripped)
+    except ValueError:
+        return "domain"
+    return "ipv4" if ip.version == 4 else "ipv6"
 
 
 def is_suspicious_target(value: str) -> bool:

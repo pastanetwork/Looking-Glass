@@ -123,7 +123,8 @@
                                 <td class="py-3 pr-4" x-text="toolLabel(row.command_type)"></td>
                                 <td class="py-3 pr-4">
                                     <span class="font-mono text-xs"
-                                          :class="row.suspect ? 'text-red-500' : ''" x-text="row.target"></span>
+                                          :class="row.suspect ? 'text-red-500' : ''"
+                                          x-text="row.target_kind ? targetKindLabel(row.target_kind) : row.target"></span>
                                     <span x-show="row.suspect"
                                           class="ml-1.5 inline-flex items-center gap-1 rounded bg-red-500/15
                                                  px-1.5 py-0.5 text-[10px] font-semibold text-red-500">

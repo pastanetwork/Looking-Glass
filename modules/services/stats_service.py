@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
-from modules.utility.masking import is_suspicious_target, mask_target
+from modules.utility.masking import classify_target, mask_target
 
 if TYPE_CHECKING:
     import logging
@@ -34,8 +34,10 @@ class StatsService:
         recent = await self._query_log.recent(limit=20)
         for entry in recent:
             raw_target = entry.get("target") or ""
-            entry["suspect"] = is_suspicious_target(raw_target)
-            entry["target"] = mask_target(raw_target)
+            kind = classify_target(raw_target)
+            entry["target_kind"] = kind
+            entry["suspect"] = kind is None and bool(raw_target)
+            entry["target"] = "" if kind else mask_target(raw_target)
 
         return {
             "total": total,
